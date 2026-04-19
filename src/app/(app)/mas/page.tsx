@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -57,6 +58,33 @@ export default function MasPage() {
             </div>
           </div>
         </Card>
+
+        {/* Quick nav */}
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 12 }}>Herramientas</div>
+          <Card padding="0">
+            {[
+              { href: "/ventas", icon: "🛒", label: "Ventas de productos", desc: "Vende artículos y consulta historial" },
+              { href: "/mas/horarios", icon: "⏰", label: "Horarios", desc: "Gestiona los horarios de clases" },
+            ].map((item, idx) => (
+              <div key={item.href}>
+                {idx > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 16px" }} />}
+                <Link href={item.href} style={{ textDecoration: "none" }}>
+                  <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 14 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: "var(--pool-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
+                      {item.icon}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{item.label}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{item.desc}</div>
+                    </div>
+                    <span style={{ color: "var(--text-secondary)", fontSize: 16 }}>›</span>
+                  </div>
+                </Link>
+              </div>
+            ))}
+          </Card>
+        </div>
 
         {/* Pricing */}
         <div>

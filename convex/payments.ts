@@ -277,6 +277,71 @@ export const getAnalytics = query({
   },
 });
 
+export const generateMonthly = mutation({
+  args: { month: v.string() },
+  handler: async (ctx, args) => {
+    const activeStudents = await ctx.db
+      .query("students")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
+
+    const configs = await ctx.db.query("appConfig").collect();
+    const configMap = Object.fromEntries(configs.map((c) => [c.key, c.value]));
+    const priceMap: Record<string, number> = {
+      lmv: parseFloat(configMap.price_lmv ?? "0"),
+      mj: parseFloat(configMap.price_mj ?? "0"),
+      aquagym3x: parseFloat(configMap.price_aquagym3x ?? "0"),
+      aquagym5x: parseFloat(configMap.price_aquagym5x ?? "0"),
+    };
+
+    const [year, month] = args.month.split("-").map(Number);
+    let created = 0;
+
+    for (const student of activeStudents) {
+      const existing = await ctx.db
+        .query("payments")
+        .withIndex("by_student", (q) => q.eq("studentId", student._id))
+        .collect()
+        .then((ps) => ps.find((p) => p.type === "monthly" && p.month === args.month));
+
+      if (existing) continue;
+
+      const price = priceMap[student.modality] ?? 0;
+      if (price === 0) continue;
+
+      const enrollDay = new Date(student.enrollmentDate + "T00:00:00").getDate();
+      const lastDay = new Date(year, month, 0).getDate();
+      const dueDate = `${args.month}-${String(Math.min(enrollDay, lastDay)).padStart(2, "0")}`;
+
+      await ctx.db.insert("payments", {
+        studentId: student._id,
+        type: "monthly",
+        amount: price,
+        dueDate,
+        status: "pending",
+        month: args.month,
+      });
+      created++;
+    }
+    return { created };
+  },
+});
+
+export const listOverdue = query({
+  args: {},
+  handler: async (ctx) => {
+    const today = new Date().toISOString().split("T")[0];
+    const payments = await ctx.db.query("payments").collect();
+    const overdue = payments.filter((p) => p.status !== "paid" && p.dueDate < today);
+    return Promise.all(
+      overdue.map(async (p) => {
+        const student = await ctx.db.get(p.studentId);
+        return { ...p, student };
+      })
+    );
+  },
+});
+
 export const updateOverdueStatuses = mutation({
   args: {},
   handler: async (ctx) => {

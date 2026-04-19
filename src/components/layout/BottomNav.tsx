@@ -1,17 +1,21 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 const TABS = [
-  { href: "/",            label: "Inicio",      icon: "⊞" },
-  { href: "/alumnos",     label: "Alumnos",      icon: "◎" },
-  { href: "/cobros",      label: "Cobros",       icon: "◈" },
-  { href: "/asistencia",  label: "Asistencia",   icon: "◷" },
-  { href: "/mas",         label: "Más",          icon: "≡" },
+  { href: "/",           label: "Inicio",     icon: "⊞" },
+  { href: "/alumnos",    label: "Alumnos",    icon: "◎" },
+  { href: "/cobros",     label: "Cobros",     icon: "◈", badge: true },
+  { href: "/asistencia", label: "Asistencia", icon: "◷" },
+  { href: "/mas",        label: "Más",        icon: "≡" },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const stats = useQuery(api.payments.getDashboardStats);
+  const overdueCount = stats?.overdueCount ?? 0;
 
   return (
     <nav style={{
@@ -25,6 +29,7 @@ export default function BottomNav() {
     }}>
       {TABS.map(tab => {
         const active = tab.href === "/" ? pathname === "/" : pathname === tab.href || pathname.startsWith(tab.href + "/");
+        const showBadge = tab.badge && overdueCount > 0;
         return (
           <Link key={tab.href} href={tab.href} style={{
             display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
@@ -34,12 +39,26 @@ export default function BottomNav() {
             transition: "color 0.15s ease",
           }}>
             <span style={{
-              width: 44, height: 30, borderRadius: 99,
+              width: 44, height: 30, borderRadius: 99, position: "relative",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 18,
               background: active ? "var(--pool-light)" : "transparent",
               transition: "background 0.15s ease",
-            }}>{tab.icon}</span>
+            }}>
+              {tab.icon}
+              {showBadge && (
+                <span style={{
+                  position: "absolute", top: 1, right: 5,
+                  minWidth: 16, height: 16, borderRadius: 99,
+                  background: "var(--overdue-coral)", color: "#fff",
+                  fontSize: 9, fontWeight: 800,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: "0 4px", border: "1.5px solid #fff",
+                }}>
+                  {overdueCount > 99 ? "99+" : overdueCount}
+                </span>
+              )}
+            </span>
             <span style={{ fontFamily: "var(--font)" }}>{tab.label}</span>
           </Link>
         );
