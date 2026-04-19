@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mística — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   MÍSTICA DESIGN SYSTEM
+   Airbnb methodology · Pool-wellness aesthetic
+   ============================================================ */
+
+/* --- TOKENS ------------------------------------------------ */
+:root {
+  /* Brand */
+  --pool-blue:       #0EA5E9;   /* Primary CTA, active states   */
+  --pool-deep:       #0284C7;   /* Pressed / dark variant       */
+  --pool-light:      #E0F2FE;   /* Light tint, tag fills        */
+  --pool-pale:       #F0F9FF;   /* Surface tint                 */
+
+  /* Status — Airbnb approach: single accent, semantic only    */
+  --paid-green:      #16A34A;
+  --paid-light:      #DCFCE7;
+  --pending-amber:   #D97706;
+  --pending-light:   #FEF3C7;
+  --overdue-coral:   #DC2626;
+  --overdue-light:   #FEE2E2;
+
+  /* Text scale — warm near-black like Airbnb's #222222       */
+  --text-primary:    #1A1A2E;
+  --text-secondary:  #6B7280;
+  --text-disabled:   rgba(26,26,46,0.28);
+
+  /* Surfaces */
+  --white:           #FFFFFF;
+  --surface:         #F8FAFC;
+  --surface-2:       #F1F5F9;
+  --border:          #E2E8F0;
+  --border-focus:    #0EA5E9;
+
+  /* Shadows — Airbnb three-layer approach */
+  --shadow-card:     rgba(0,0,0,0.02) 0px 0px 0px 1px,
+                     rgba(0,0,0,0.04) 0px 2px 6px,
+                     rgba(0,0,0,0.08) 0px 4px 12px;
+  --shadow-hover:    rgba(14,165,233,0.12) 0px 0px 0px 1px,
+                     rgba(0,0,0,0.06) 0px 4px 12px,
+                     rgba(0,0,0,0.12) 0px 8px 24px;
+  --shadow-focus:    0 0 0 3px rgba(14,165,233,0.25);
+
+  /* Radius scale */
+  --r-xs:   4px;
+  --r-sm:   8px;
+  --r-md:   14px;
+  --r-lg:   20px;
+  --r-xl:   28px;
+  --r-full: 9999px;
+
+  /* Spacing */
+  --sp-1: 4px;  --sp-2: 8px;   --sp-3: 12px;  --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px;  --sp-8: 32px;  --sp-10: 40px;
+
+  /* Typography */
+  --font: 'Plus Jakarta Sans', -apple-system, system-ui, sans-serif;
+}
+
+/* --- RESET ------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+body {
+  font-family: var(--font);
+  background: var(--surface);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+/* --- LAYOUT ------------------------------------------------ */
+.ds-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--sp-8) var(--sp-5);
+}
+.ds-section { margin-bottom: var(--sp-10); }
+.ds-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: var(--sp-4);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+.ds-row { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: flex-start; }
+.ds-col { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ds-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  margin-top: var(--sp-1);
+  text-align: center;
+}
+
+/* --- WORDMARK ---------------------------------------------- */
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+.wordmark-icon {
+  width: 32px; height: 32px;
+  background: var(--pool-blue);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.wordmark-accent { color: var(--pool-blue); }
+
+/* --- COLOR SWATCHES --------------------------------------- */
+.swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px,1fr)); gap: var(--sp-3); }
+.swatch {
+  border-radius: var(--r-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.swatch-color { height: 64px; }
+.swatch-info { background: var(--white); padding: 8px 10px; }
+.swatch-name { font-size: 11px; font-weight: 600; color: var(--text-primary); }
+.swatch-hex  { font-size: 10px; color: var(--text-secondary); font-family: monospace; }
+
+/* --- TYPE SCALE ------------------------------------------- */
+.type-row { padding: var(--sp-4) 0; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: var(--sp-4); }
+.type-meta { min-width: 160px; font-size: 11px; color: var(--text-secondary); font-family: monospace; flex-shrink: 0; }
+.type-sample { flex: 1; }
+
+/* --- BUTTONS ---------------------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px;
+  font-family: var(--font);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+/* Sizes */
+.btn-lg { font-size: 16px; padding: 0 var(--sp-6); height: 52px; border-radius: var(--r-sm); }
+.btn-md { font-size: 14px; padding: 0 var(--sp-5); height: 44px; border-radius: var(--r-sm); }
+.btn-sm { font-size: 13px; padding: 0 var(--sp-4); height: 36px; border-radius: var(--r-sm); }
+.btn-full { width: 100%; }
+
+/* Variants */
+.btn-primary   { background: var(--text-primary); color: var(--white); }
+.btn-primary:hover { background: #2d2d4e; box-shadow: var(--shadow-hover); transform: translateY(-1px); }
+.btn-primary:active { transform: scale(0.97); }
+
+.btn-brand     { background: var(--pool-blue); color: var(--white); }
+.btn-brand:hover { background: var(--pool-deep); box-shadow: 0 4px 16px rgba(14,165,233,0.35); transform: translateY(-1px); }
+
+.btn-outline   { background: transparent; color: var(--text-primary); border: 1.5px solid var(--border); }
+.btn-outline:hover { border-color: var(--text-primary); background: var(--surface-2); }
+
+.btn-ghost     { background: transparent; color: var(--pool-blue); border: none; }
+.btn-ghost:hover { background: var(--pool-light); }
+
+.btn-danger    { background: var(--overdue-coral); color: var(--white); }
+.btn-danger:hover { background: #b91c1c; box-shadow: 0 4px 16px rgba(220,38,38,0.3); }
+
+/* Circular (Airbnb nav style) */
+.btn-circle {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1.5px solid var(--border);
+  font-size: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-circle:hover { box-shadow: var(--shadow-hover); transform: scale(1.05); }
+
+/* --- BADGES / STATUS -------------------------------------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--r-full);
+  white-space: nowrap;
+}
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.badge-paid    { background: var(--paid-light);    color: var(--paid-green);    }
+.badge-paid    .badge-dot { background: var(--paid-green); }
+.badge-pending { background: var(--pending-light); color: var(--pending-amber); }
+.badge-pending .badge-dot { background: var(--pending-amber); }
+.badge-overdue { background: var(--overdue-light); color: var(--overdue-coral); }
+.badge-overdue .badge-dot { background: var(--overdue-coral); }
+.badge-active  { background: var(--pool-light);   color: var(--pool-deep);     }
+.badge-active  .badge-dot { background: var(--pool-blue); }
+.badge-inactive{ background: var(--surface-2);    color: var(--text-secondary);}
+.badge-inactive .badge-dot { background: var(--text-secondary); }
+
+/* --- CARDS ------------------------------------------------ */
+.card {
+  background: var(--white);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+.card-body { padding: var(--sp-5); }
+.card-header {
+  padding: var(--sp-5);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-footer {
+  padding: var(--sp-4) var(--sp-5);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Metric card */
+.metric-card {
+  background: var(--white);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--sp-5);
+}
+.metric-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+.metric-value { font-size: 28px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; line-height: 1; }
+.metric-sub   { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.metric-icon  {
+  width: 40px; height: 40px; border-radius: var(--r-md);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: var(--sp-3);
+}
+.metric-icon-blue   { background: var(--pool-light); }
+.metric-icon-green  { background: var(--paid-light); }
+.metric-icon-amber  { background: var(--pending-light); }
+.metric-icon-coral  { background: var(--overdue-light); }
+
+/* --- STUDENT CARD ----------------------------------------- */
+.student-row {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--white);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-left: 3px solid transparent;
+}
+.student-row:hover { box-shadow: var(--shadow-hover); transform: translateX(2px); }
+.student-row.overdue { border-left-color: var(--overdue-coral); }
+.avatar {
+  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  background: var(--pool-light);
+  color: var(--pool-deep);
+  font-weight: 700; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+}
+.student-info { flex: 1; min-width: 0; }
+.student-name { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.student-meta { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.student-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+
+/* --- INPUTS ---------------------------------------------- */
+.input-group { display: flex; flex-direction: column; gap: 6px; }
+.input-label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.input {
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text-primary);
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 0 var(--sp-4);
+  height: 52px;
+  width: 100%;
+  transition: all 0.15s ease;
+  outline: none;
+  box-shadow: rgba(0,0,0,0.02) 0px 1px 4px;
+}
+.input::placeholder { color: var(--text-disabled); }
+.input:hover  { border-color: #94A3B8; }
+.input:focus  { border-color: var(--pool-blue); box-shadow: var(--shadow-focus); }
+.input-hint   { font-size: 12px; color: var(--text-secondary); }
+.input-error  { border-color: var(--overdue-coral) !important; }
+.hint-error   { color: var(--overdue-coral); }
+
+/* Select */
+.select-wrap { position: relative; }
+.select-wrap::after {
+  content: '▾';
+  position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+  color: var(--text-secondary); pointer-events: none; font-size: 12px;
+}
+select.input { appearance: none; cursor: pointer; padding-right: 36px; }
+
+/* --- SEGMENTED CONTROL ------------------------------------ */
+.seg-ctrl {
+  display: inline-flex;
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  padding: 3px;
+  gap: 2px;
+}
+.seg-btn {
+  font-family: var(--font);
+  font-size: 13px; font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.seg-btn.active {
+  background: var(--white);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: rgba(0,0,0,0.08) 0px 1px 6px;
+}
+
+/* --- BOTTOM NAV ------------------------------------------ */
+.bottom-nav {
+  display: flex; align-items: flex-end; justify-content: space-around;
+  background: var(--white);
+  border-top: 1px solid var(--border);
+  padding: 8px 0 12px;
+  border-radius: 0 0 var(--r-xl) var(--r-xl);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+}
+.nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  cursor: pointer; padding: 0 var(--sp-4);
+  color: var(--text-secondary);
+  font-size: 10px; font-weight: 500;
+  transition: color 0.15s ease;
+  min-width: 56px;
+}
+.nav-item.active { color: var(--pool-blue); }
+.nav-icon {
+  width: 44px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  border-radius: var(--r-full);
+  transition: background 0.15s ease;
+}
+.nav-item.active .nav-icon { background: var(--pool-light); }
+
+/* --- ALERT CHIPS ----------------------------------------- */
+.alert-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+}
+.alert-chip-coral { background: var(--overdue-light); color: var(--overdue-coral); border: 1px solid rgba(220,38,38,0.15); }
+.alert-chip-amber { background: var(--pending-light); color: var(--pending-amber); border: 1px solid rgba(217,119,6,0.15); }
+
+/* --- SCHEDULE CARD --------------------------------------- */
+.schedule-card {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--white);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-card);
+}
+.schedule-time { font-size: 15px; font-weight: 700; color: var(--text-primary); min-width: 80px; }
+.schedule-info { flex: 1; font-size: 13px; color: var(--text-secondary); }
+.schedule-count {
+  font-size: 13px; font-weight: 600;
+  background: var(--pool-light); color: var(--pool-deep);
+  padding: 4px 10px; border-radius: var(--r-full);
+}
+
+/* --- ATTENDANCE ROW --------------------------------------- */
+.attendance-row {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--white);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-card);
+  min-height: 64px;
+}
+.att-name { flex: 1; font-size: 15px; font-weight: 500; }
+.att-toggle {
+  display: flex;
+  background: var(--surface-2);
+  border-radius: var(--r-full);
+  padding: 3px;
+  gap: 2px;
+}
+.att-btn {
+  width: 40px; height: 32px;
+  border-radius: var(--r-full);
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+.att-btn.att-present { background: var(--paid-light); }
+.att-btn.att-absent  { background: var(--overdue-light); }
+
+/* --- PAYMENT ROW ----------------------------------------- */
+.payment-row {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--white);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-card);
+  border-left: 3px solid transparent;
+}
+.payment-row.overdue { border-left-color: var(--overdue-coral); background: #fffafa; }
+.pay-info { flex: 1; }
+.pay-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.pay-date { font-size: 12px; color: var(--text-secondary); }
+.pay-amount { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+
+/* --- MINI CALENDAR (mood-style) -------------------------- */
+.mini-cal { background: var(--white); border-radius: var(--r-lg); box-shadow: var(--shadow-card); padding: var(--sp-5); }
+.cal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--sp-4); }
+.cal-title { font-size: 16px; font-weight: 700; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-day-label { text-align: center; font-size: 10px; font-weight: 600; color: var(--text-secondary); padding: 4px 0; }
+.cal-day {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 500;
+  cursor: pointer;
+}
+.cal-day.present { background: var(--paid-light); color: var(--paid-green); font-weight: 700; }
+.cal-day.absent  { background: var(--overdue-light); color: var(--overdue-coral); }
+.cal-day.neutral { color: var(--text-secondary); }
+.cal-day.today   { border: 2px solid var(--pool-blue); color: var(--pool-blue); font-weight: 700; }
+.cal-day.future  { color: var(--border); }
+
+/* --- DIVIDER --------------------------------------------- */
+.divider { height: 1px; background: var(--border); margin: var(--sp-5) 0; }
+
+/* --- PHONE DEMO FRAME ------------------------------------ */
+.phone-frame {
+  width: 320px;
+  border-radius: 40px;
+  background: var(--white);
+  box-shadow: 0 0 0 10px #1A1A2E, 0 32px 64px rgba(0,0,0,0.25);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.phone-status {
+  background: var(--white);
+  padding: 12px 20px 8px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; font-weight: 600;
+}
+.phone-screen { padding: var(--sp-5); background: var(--surface); min-height: 520px; }
+.phone-screen-white { padding: var(--sp-5); background: var(--white); min-height: 520px; }
+
+/* --- MISC ------------------------------------------------ */
+.tag {
+  display: inline-flex; align-items: center;
+  font-size: 12px; font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--r-full);
+  background: var(--pool-light);
+  color: var(--pool-deep);
+}
+.text-muted { color: var(--text-secondary); font-size: 13px; }
+.bold700 { font-weight: 700; }
+
+/* PAGE HEADING */
+.page-hero { margin-bottom: var(--sp-10); }
+.page-hero-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pool-blue); margin-bottom: var(--sp-2); }
+.page-hero-title { font-size: 36px; font-weight: 800; letter-spacing: -0.8px; color: var(--text-primary); line-height: 1.1; margin-bottom: var(--sp-2); }
+.page-hero-sub { font-size: 16px; color: var(--text-secondary); max-width: 480px; }
+</style>
+</head>
+<body>
+<div class="ds-page">
+
+  <!-- HERO -->
+  <div class="page-hero">
+    <div class="page-hero-label">Design System</div>
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
+      <div class="wordmark">
+        <span class="wordmark-icon">🏊</span>
+        <span>Mís<span class="wordmark-accent">tica</span></span>
+      </div>
+    </div>
+    <div class="page-hero-title">Airbnb-inspired,<br>pool-born.</div>
+    <div class="page-hero-sub">A warm, photography-method design system adapted for a swimming school admin app. Clean white canvas, single brand accent, three-layer shadows.</div>
+  </div>
+
+  <!-- ═══════ COLOR ═══════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Color Palette</div>
+    <div class="swatch-grid">
+      <div class="swatch">
+        <div class="swatch-color" style="background:#0EA5E9"></div>
+        <div class="swatch-info"><div class="swatch-name">Pool Blue</div><div class="swatch-hex">--pool-blue · #0EA5E9</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#0284C7"></div>
+        <div class="swatch-info"><div class="swatch-name">Pool Deep</div><div class="swatch-hex">--pool-deep · #0284C7</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#E0F2FE"></div>
+        <div class="swatch-info"><div class="swatch-name">Pool Light</div><div class="swatch-hex">--pool-light · #E0F2FE</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#1A1A2E"></div>
+        <div class="swatch-info"><div class="swatch-name">Ink (Text)</div><div class="swatch-hex">--text-primary · #1A1A2E</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#6B7280"></div>
+        <div class="swatch-info"><div class="swatch-name">Muted</div><div class="swatch-hex">--text-secondary · #6B7280</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#16A34A"></div>
+        <div class="swatch-info"><div class="swatch-name">Paid Green</div><div class="swatch-hex">--paid-green · #16A34A</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#D97706"></div>
+        <div class="swatch-info"><div class="swatch-name">Pending Amber</div><div class="swatch-hex">--pending-amber · #D97706</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#DC2626"></div>
+        <div class="swatch-info"><div class="swatch-name">Overdue Coral</div><div class="swatch-hex">--overdue-coral · #DC2626</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#F8FAFC"></div>
+        <div class="swatch-info" style="border-top:1px solid #E2E8F0"><div class="swatch-name">Surface</div><div class="swatch-hex">--surface · #F8FAFC</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ TYPOGRAPHY ══════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Typography — Plus Jakarta Sans</div>
+    <div class="type-row">
+      <div class="type-meta">36px / 800 / -0.8px</div>
+      <div class="type-sample" style="font-size:36px;font-weight:800;letter-spacing:-0.8px;line-height:1.1">Gestión de clases</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta">24px / 700 / -0.4px</div>
+      <div class="type-sample" style="font-size:24px;font-weight:700;letter-spacing:-0.4px">Alumnos activos</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta">20px / 700 / -0.2px</div>
+      <div class="type-sample" style="font-size:20px;font-weight:700;letter-spacing:-0.2px">Cobros del mes</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta">16px / 600</div>
+      <div class="type-sample" style="font-size:16px;font-weight:600">María González · LMV 4–5 pm</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta">15px / 500 (body)</div>
+      <div class="type-sample" style="font-size:15px;font-weight:500">El alumno renueva el 15 de cada mes. Modalidad natación 3 veces por semana.</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta">13px / 400 (secondary)</div>
+      <div class="type-sample" style="font-size:13px;font-weight:400;color:#6B7280">Inscripción: 12 enero 2025 · Teléfono: +58 414 123 4567</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta">11px / 700 CAPS (label)</div>
+      <div class="type-sample" style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6B7280">Modalidad · Turno · Estado</div>
+    </div>
+  </div>
+
+  <!-- ═══════ BUTTONS ══════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Buttons</div>
+    <div class="ds-row" style="margin-bottom:16px;">
+      <div class="ds-col">
+        <button class="btn btn-primary btn-lg">Guardar alumno</button>
+        <div class="ds-label">Primary · Dark (Airbnb method)</div>
+      </div>
+      <div class="ds-col">
+        <button class="btn btn-brand btn-lg">+ Agregar</button>
+        <div class="ds-label">Brand · Pool Blue</div>
+      </div>
+      <div class="ds-col">
+        <button class="btn btn-outline btn-lg">Cancelar</button>
+        <div class="ds-label">Outline</div>
+      </div>
+      <div class="ds-col">
+        <button class="btn btn-ghost btn-lg">Ver historial</button>
+        <div class="ds-label">Ghost</div>
+      </div>
+      <div class="ds-col">
+        <button class="btn btn-danger btn-lg">Dar de baja</button>
+        <div class="ds-label">Danger</div>
+      </div>
+    </div>
+    <div class="ds-row">
+      <div class="ds-col">
+        <button class="btn btn-primary btn-md">Marcar pagado</button>
+        <div class="ds-label">Medium</div>
+      </div>
+      <div class="ds-col">
+        <button class="btn btn-outline btn-sm">Editar</button>
+        <div class="ds-label">Small</div>
+      </div>
+      <div class="ds-col">
+        <div class="btn-circle">←</div>
+        <div class="ds-label">Circular (Airbnb nav)</div>
+      </div>
+      <div class="ds-col">
+        <div class="btn-circle">→</div>
+        <div class="ds-label">Circular</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ BADGES ═══════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Status Badges</div>
+    <div class="ds-row">
+      <div class="ds-col">
+        <span class="badge badge-paid"><span class="badge-dot"></span>Pagado</span>
+        <div class="ds-label">Paid</div>
+      </div>
+      <div class="ds-col">
+        <span class="badge badge-pending"><span class="badge-dot"></span>Pendiente</span>
+        <div class="ds-label">Pending</div>
+      </div>
+      <div class="ds-col">
+        <span class="badge badge-overdue"><span class="badge-dot"></span>En mora</span>
+        <div class="ds-label">Overdue</div>
+      </div>
+      <div class="ds-col">
+        <span class="badge badge-active"><span class="badge-dot"></span>Activo</span>
+        <div class="ds-label">Active</div>
+      </div>
+      <div class="ds-col">
+        <span class="badge badge-inactive"><span class="badge-dot"></span>Inactivo</span>
+        <div class="ds-label">Inactive</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;">
+      <div class="ds-row">
+        <span class="tag">LMV</span>
+        <span class="tag">MJ</span>
+        <span class="tag">Agua Gym 3x</span>
+        <span class="tag">Agua Gym 5x</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ INPUTS ═══════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Form Inputs</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:600px;">
+      <div class="input-group">
+        <label class="input-label">Nombre completo</label>
+        <input class="input" type="text" placeholder="María González" value="Carlos Rodríguez">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Teléfono</label>
+        <input class="input" type="tel" placeholder="+58 414 000 0000" value="+58 414 123 4567">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Modalidad</label>
+        <div class="select-wrap">
+          <select class="input">
+            <option>Natación LMV — 250 Bs</option>
+            <option>Natación MJ — 220 Bs</option>
+            <option>Agua Gym 3x — 250 Bs</option>
+            <option>Agua Gym 5x — 300 Bs</option>
+          </select>
+        </div>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Turno</label>
+        <div class="select-wrap">
+          <select class="input">
+            <option>LMV 3–4 pm</option>
+            <option selected>LMV 4–5 pm</option>
+            <option>LMV 5–6 pm</option>
+          </select>
+        </div>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Campo con error</label>
+        <input class="input input-error" type="text" placeholder="Requerido" value="">
+        <span class="input-hint hint-error">Este campo es requerido</span>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Notas</label>
+        <input class="input" type="text" placeholder="Opcional...">
+        <span class="input-hint">Campo libre, visible solo en el perfil</span>
+      </div>
+    </div>
+    <div style="margin-top:20px;">
+      <div class="ds-section-title" style="margin-bottom:12px;">Segmented Control</div>
+      <div class="ds-row">
+        <div>
+          <div class="seg-ctrl">
+            <button class="seg-btn active">LMV</button>
+            <button class="seg-btn">MJ</button>
+            <button class="seg-btn">Agua Gym</button>
+          </div>
+          <div class="ds-label">Modality selector</div>
+        </div>
+        <div>
+          <div class="seg-ctrl">
+            <button class="seg-btn active">Semana</button>
+            <button class="seg-btn">Mes</button>
+          </div>
+          <div class="ds-label">Calendar toggle</div>
+        </div>
+        <div>
+          <div class="seg-ctrl">
+            <button class="seg-btn active">Pendientes</button>
+            <button class="seg-btn">Pagados</button>
+            <button class="seg-btn">Todos</button>
+          </div>
+          <div class="ds-label">Payment filter</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ CARDS ════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Cards & Surfaces</div>
+
+    <!-- Metric cards -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
+      <div class="metric-card">
+        <div class="metric-icon metric-icon-blue">👥</div>
+        <div class="metric-label">Alumnos activos</div>
+        <div class="metric-value">47</div>
+        <div class="metric-sub">+3 este mes</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon metric-icon-green">💰</div>
+        <div class="metric-label">Cobros del mes</div>
+        <div class="metric-value">8.450</div>
+        <div class="metric-sub">Bs recaudados</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon metric-icon-amber">🕐</div>
+        <div class="metric-label">Vencen pronto</div>
+        <div class="metric-value">5</div>
+        <div class="metric-sub">En 7 días</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon metric-icon-coral">🔴</div>
+        <div class="metric-label">En mora</div>
+        <div class="metric-value">2</div>
+        <div class="metric-sub">Sin pagar</div>
+      </div>
+    </div>
+
+    <!-- Info card -->
+    <div class="card" style="max-width:420px;">
+      <div class="card-header">
+        <span style="font-size:16px;font-weight:700">Turno LMV 4–5 pm</span>
+        <span class="badge badge-active"><span class="badge-dot"></span>Activo</span>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;justify-content:space-between;">
+          <span class="text-muted">Capacidad</span>
+          <span style="font-weight:600">12 / 15 alumnos</span>
+        </div>
+        <div style="background:var(--surface-2);border-radius:8px;height:8px;overflow:hidden;">
+          <div style="background:var(--pool-blue);width:80%;height:100%;border-radius:8px;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span class="text-muted">Días</span>
+          <span style="font-weight:600">Lun · Mié · Vie</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span class="text-muted">Horario</span>
+          <span style="font-weight:600">4:00 – 5:00 pm</span>
+        </div>
+      </div>
+      <div class="card-footer">Última asistencia: hoy · 11 presentes</div>
+    </div>
+  </div>
+
+  <!-- ═══════ STUDENT LIST COMPONENT ═══════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Student List Rows</div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:500px;">
+      <div class="student-row">
+        <div class="avatar">MG</div>
+        <div class="student-info">
+          <div class="student-name">María González</div>
+          <div class="student-meta">LMV 4–5 pm · Renueva 20 abr</div>
+        </div>
+        <div class="student-right">
+          <span class="badge badge-paid"><span class="badge-dot"></span>Pagado</span>
+          <span style="font-size:12px;color:var(--text-secondary)">250 Bs</span>
+        </div>
+      </div>
+      <div class="student-row">
+        <div class="avatar" style="background:#FEF3C7;color:#92400E;">CR</div>
+        <div class="student-info">
+          <div class="student-name">Carlos Rodríguez</div>
+          <div class="student-meta">MJ 3–4 pm · Vence en 3 días</div>
+        </div>
+        <div class="student-right">
+          <span class="badge badge-pending"><span class="badge-dot"></span>Pendiente</span>
+          <span style="font-size:12px;color:var(--text-secondary)">220 Bs</span>
+        </div>
+      </div>
+      <div class="student-row overdue">
+        <div class="avatar" style="background:#FEE2E2;color:#991B1B;">LP</div>
+        <div class="student-info">
+          <div class="student-name">Luisa Pérez</div>
+          <div class="student-meta">Agua Gym 5x · Venció hace 8 días</div>
+        </div>
+        <div class="student-right">
+          <span class="badge badge-overdue"><span class="badge-dot"></span>En mora</span>
+          <span style="font-size:12px;color:var(--text-secondary)">300 Bs</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ ATTENDANCE + PAYMENTS ════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Attendance Rows & Payment Rows</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Asistencia · LMV 4–5 pm</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div class="attendance-row">
+            <div class="avatar" style="width:36px;height:36px;font-size:13px;">MG</div>
+            <div class="att-name">María González</div>
+            <div class="att-toggle">
+              <button class="att-btn att-present">✓</button>
+              <button class="att-btn">✕</button>
+            </div>
+          </div>
+          <div class="attendance-row">
+            <div class="avatar" style="width:36px;height:36px;font-size:13px;background:#FEF3C7;color:#92400E;">JM</div>
+            <div class="att-name">Juan Martínez</div>
+            <div class="att-toggle">
+              <button class="att-btn">✓</button>
+              <button class="att-btn att-absent">✕</button>
+            </div>
+          </div>
+          <div class="attendance-row">
+            <div class="avatar" style="width:36px;height:36px;font-size:13px;background:#DCFCE7;color:#166534;">AS</div>
+            <div class="att-name">Ana Suárez</div>
+            <div class="att-toggle">
+              <button class="att-btn att-present">✓</button>
+              <button class="att-btn">✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Cobros · Pendientes</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div class="payment-row">
+            <div class="pay-info">
+              <div class="pay-name">Carlos Rodríguez</div>
+              <div class="pay-date">Vence 18 abr · Mensualidad</div>
+            </div>
+            <span class="badge badge-pending"><span class="badge-dot"></span>Pendiente</span>
+            <div class="pay-amount">220 Bs</div>
+          </div>
+          <div class="payment-row overdue">
+            <div class="pay-info">
+              <div class="pay-name">Luisa Pérez</div>
+              <div class="pay-date">Venció 8 abr · Mensualidad</div>
+            </div>
+            <span class="badge badge-overdue"><span class="badge-dot"></span>En mora</span>
+            <div class="pay-amount">300 Bs</div>
+          </div>
+          <div class="payment-row">
+            <div class="pay-info">
+              <div class="pay-name">Pedro Díaz</div>
+              <div class="pay-date">Vence 22 abr · Mensualidad</div>
+            </div>
+            <span class="badge badge-pending"><span class="badge-dot"></span>Pendiente</span>
+            <div class="pay-amount">250 Bs</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ MINI CALENDAR ════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Attendance Calendar (Student Detail)</div>
+    <div class="mini-cal" style="max-width:320px;">
+      <div class="cal-header">
+        <span class="cal-title">Abril 2026</span>
+        <div class="seg-ctrl" style="padding:2px;">
+          <button class="seg-btn" style="padding:4px 10px;font-size:11px;">Sem</button>
+          <button class="seg-btn active" style="padding:4px 10px;font-size:11px;">Mes</button>
+        </div>
+      </div>
+      <div class="cal-grid">
+        <div class="cal-day-label">L</div><div class="cal-day-label">M</div><div class="cal-day-label">X</div><div class="cal-day-label">J</div><div class="cal-day-label">V</div><div class="cal-day-label">S</div><div class="cal-day-label">D</div>
+        <!-- Row 1 -->
+        <div class="cal-day present">1</div><div class="cal-day neutral">2</div><div class="cal-day present">3</div><div class="cal-day neutral">4</div><div class="cal-day present">5</div><div class="cal-day neutral">6</div><div class="cal-day neutral">7</div>
+        <!-- Row 2 -->
+        <div class="cal-day present">8</div><div class="cal-day neutral">9</div><div class="cal-day absent">10</div><div class="cal-day neutral">11</div><div class="cal-day present">12</div><div class="cal-day neutral">13</div><div class="cal-day neutral">14</div>
+        <!-- Row 3 -->
+        <div class="cal-day present">15</div><div class="cal-day neutral">16</div><div class="cal-day today">17</div><div class="cal-day future">18</div><div class="cal-day future">19</div><div class="cal-day future">20</div><div class="cal-day future">21</div>
+      </div>
+      <div class="divider"></div>
+      <div style="display:flex;gap:16px;font-size:12px;">
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:var(--paid-light);display:inline-block;border:1.5px solid var(--paid-green);"></span> Presente</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:var(--overdue-light);display:inline-block;border:1.5px solid var(--overdue-coral);"></span> Ausente</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ BOTTOM NAV ═══════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Bottom Navigation</div>
+    <div style="max-width:360px;">
+      <div class="bottom-nav">
+        <div class="nav-item active">
+          <div class="nav-icon">🏠</div>
+          <span>Inicio</span>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">👥</div>
+          <span>Alumnos</span>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">📋</div>
+          <span>Cobros</span>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">📅</div>
+          <span>Asistencia</span>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">☰</div>
+          <span>Más</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ PHONE MOCKUP ══════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Screen Mockups</div>
+    <div style="display:flex;gap:32px;flex-wrap:wrap;">
+
+      <!-- Dashboard screen -->
+      <div>
+        <div class="phone-frame">
+          <div class="phone-status">
+            <span>9:41</span>
+            <span>●●● 🔋</span>
+          </div>
+          <div class="phone-screen">
+            <!-- greeting -->
+            <div style="margin-bottom:16px;">
+              <div style="font-size:12px;color:var(--text-secondary);">Jueves, 17 de abril</div>
+              <div style="font-size:20px;font-weight:800;letter-spacing:-0.3px;margin-top:2px;">Buenos días 🌊</div>
+            </div>
+            <!-- alert chips -->
+            <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+              <span class="alert-chip alert-chip-amber">🕐 5 vencen pronto</span>
+              <span class="alert-chip alert-chip-coral">🔴 2 en mora</span>
+            </div>
+            <!-- metrics 2-col -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+              <div class="metric-card" style="padding:14px;">
+                <div style="font-size:11px;font-weight:500;color:var(--text-secondary);">Alumnos</div>
+                <div style="font-size:24px;font-weight:800;letter-spacing:-0.5px;color:var(--text-primary);">47</div>
+              </div>
+              <div class="metric-card" style="padding:14px;">
+                <div style="font-size:11px;font-weight:500;color:var(--text-secondary);">Cobros mes</div>
+                <div style="font-size:24px;font-weight:800;letter-spacing:-0.5px;color:var(--text-primary);">8.450</div>
+              </div>
+            </div>
+            <!-- today schedule -->
+            <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Clases de hoy</div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
+              <div class="schedule-card" style="padding:10px 14px;">
+                <div class="schedule-time" style="font-size:13px;">3–4 pm</div>
+                <div class="schedule-info">LMV · 12 alumnos</div>
+                <span class="schedule-count">12</span>
+              </div>
+              <div class="schedule-card" style="padding:10px 14px;">
+                <div class="schedule-time" style="font-size:13px;">4–5 pm</div>
+                <div class="schedule-info">LMV · 8 alumnos</div>
+                <span class="schedule-count">8</span>
+              </div>
+            </div>
+            <!-- quick actions -->
+            <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Acciones rápidas</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <button class="btn btn-primary btn-sm" style="border-radius:12px;height:40px;font-size:12px;">+ Alumno</button>
+              <button class="btn btn-brand btn-sm" style="border-radius:12px;height:40px;font-size:12px;">✓ Asistencia</button>
+              <button class="btn btn-outline btn-sm" style="border-radius:12px;height:40px;font-size:12px;">💰 Cobro</button>
+              <button class="btn btn-outline btn-sm" style="border-radius:12px;height:40px;font-size:12px;">🛍 Venta</button>
+            </div>
+          </div>
+          <div class="bottom-nav" style="border-radius:0;">
+            <div class="nav-item active"><div class="nav-icon" style="font-size:16px;">🏠</div><span>Inicio</span></div>
+            <div class="nav-item"><div class="nav-icon" style="font-size:16px;">👥</div><span>Alumnos</span></div>
+            <div class="nav-item"><div class="nav-icon" style="font-size:16px;">📋</div><span>Cobros</span></div>
+            <div class="nav-item"><div class="nav-icon" style="font-size:16px;">📅</div><span>Lista</span></div>
+            <div class="nav-item"><div class="nav-icon" style="font-size:16px;">☰</div><span>Más</span></div>
+          </div>
+        </div>
+        <div class="ds-label" style="margin-top:12px;font-size:12px;">Dashboard — Home</div>
+      </div>
+
+      <!-- Student detail screen -->
+      <div>
+        <div class="phone-frame">
+          <div class="phone-status">
+            <span>9:41</span>
+            <span>●●● 🔋</span>
+          </div>
+          <div class="phone-screen-white">
+            <!-- back + header -->
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
+              <div class="btn-circle" style="width:36px;height:36px;font-size:14px;">←</div>
+              <span style="font-size:14px;font-weight:600;color:var(--text-secondary);">Alumnos</span>
+            </div>
+            <!-- Avatar hero -->
+            <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:20px;">
+              <div style="width:72px;height:72px;border-radius:50%;background:var(--pool-light);color:var(--pool-deep);font-size:24px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-bottom:10px;box-shadow:0 4px 16px rgba(14,165,233,0.2);">MG</div>
+              <div style="font-size:20px;font-weight:800;letter-spacing:-0.3px;">María González</div>
+              <a href="tel:+584141234567" style="font-size:13px;color:var(--pool-blue);text-decoration:none;font-weight:500;margin-top:2px;">+58 414 123 4567 📞</a>
+              <div style="margin-top:8px;display:flex;gap:6px;">
+                <span class="badge badge-active"><span class="badge-dot"></span>Activa</span>
+                <span class="tag">LMV</span>
+              </div>
+            </div>
+            <!-- Info rows -->
+            <div style="background:var(--surface);border-radius:var(--r-lg);padding:16px;display:flex;flex-direction:column;gap:12px;margin-bottom:16px;">
+              <div style="display:flex;justify-content:space-between;">
+                <span style="font-size:13px;color:var(--text-secondary);">Turno</span>
+                <span style="font-size:13px;font-weight:600;">LMV 4–5 pm</span>
+              </div>
+              <div style="height:1px;background:var(--border);"></div>
+              <div style="display:flex;justify-content:space-between;">
+                <span style="font-size:13px;color:var(--text-secondary);">Inscripción</span>
+                <span style="font-size:13px;font-weight:600;">12 ene 2025</span>
+              </div>
+              <div style="height:1px;background:var(--border);"></div>
+              <div style="display:flex;justify-content:space-between;">
+                <span style="font-size:13px;color:var(--text-secondary);">Renueva</span>
+                <span style="font-size:13px;font-weight:600;color:var(--pending-amber);">20 abr · en 3 días</span>
+              </div>
+            </div>
+            <!-- Tabs -->
+            <div class="seg-ctrl" style="width:100%;justify-content:stretch;">
+              <button class="seg-btn active" style="flex:1;font-size:12px;">Pagos</button>
+              <button class="seg-btn" style="flex:1;font-size:12px;">Asistencia</button>
+              <button class="seg-btn" style="flex:1;font-size:12px;">Info</button>
+            </div>
+            <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px;">
+              <div class="payment-row" style="padding:10px 14px;">
+                <div class="pay-info"><div class="pay-name" style="font-size:13px;">Mensualidad</div><div class="pay-date">Abr 2026</div></div>
+                <span class="badge badge-pending" style="font-size:11px;"><span class="badge-dot"></span>Pendiente</span>
+                <div class="pay-amount" style="font-size:14px;">250 Bs</div>
+              </div>
+              <div class="payment-row" style="padding:10px 14px;">
+                <div class="pay-info"><div class="pay-name" style="font-size:13px;">Mensualidad</div><div class="pay-date">Mar 2026 · Pagado 12 mar</div></div>
+                <span class="badge badge-paid" style="font-size:11px;"><span class="badge-dot"></span>Pagado</span>
+                <div class="pay-amount" style="font-size:14px;">250 Bs</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ds-label" style="margin-top:12px;font-size:12px;">Student Detail</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════ SHADOWS ══════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Elevation & Shadows (Airbnb 3-layer method)</div>
+    <div class="ds-row">
+      <div style="background:var(--white);border-radius:var(--r-lg);padding:24px 32px;text-align:center;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Card</div>
+        <div style="font-size:11px;color:var(--text-secondary);font-family:monospace;">rgba(0,0,0,0.02) 0 0 0 1px<br>rgba(0,0,0,0.04) 0 2px 6px<br>rgba(0,0,0,0.08) 0 4px 12px</div>
+      </div>
+      <div style="background:var(--white);border-radius:var(--r-lg);padding:24px 32px;text-align:center;box-shadow:rgba(14,165,233,0.12) 0px 0px 0px 1px, rgba(0,0,0,0.06) 0px 4px 12px, rgba(0,0,0,0.12) 0px 8px 24px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Hover</div>
+        <div style="font-size:11px;color:var(--text-secondary);font-family:monospace;">Brand tint ring +<br>lifted ambient +<br>deeper key</div>
+      </div>
+      <div style="background:var(--white);border-radius:var(--r-lg);padding:24px 32px;text-align:center;box-shadow:0 0 0 3px rgba(14,165,233,0.25);">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Focus</div>
+        <div style="font-size:11px;color:var(--text-secondary);font-family:monospace;">0 0 0 3px<br>rgba(14,165,233,0.25)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ RADIUS SCALE ══════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-section-title">Border Radius Scale</div>
+    <div class="ds-row" style="align-items:flex-end;">
+      <div class="ds-col">
+        <div style="width:48px;height:48px;background:var(--pool-light);border:2px solid var(--pool-blue);border-radius:4px;"></div>
+        <div class="ds-label">4px · --r-xs</div>
+      </div>
+      <div class="ds-col">
+        <div style="width:56px;height:56px;background:var(--pool-light);border:2px solid var(--pool-blue);border-radius:8px;"></div>
+        <div class="ds-label">8px · --r-sm<br>Buttons</div>
+      </div>
+      <div class="ds-col">
+        <div style="width:64px;height:64px;background:var(--pool-light);border:2px solid var(--pool-blue);border-radius:14px;"></div>
+        <div class="ds-label">14px · --r-md<br>Badges</div>
+      </div>
+      <div class="ds-col">
+        <div style="width:72px;height:72px;background:var(--pool-light);border:2px solid var(--pool-blue);border-radius:20px;"></div>
+        <div class="ds-label">20px · --r-lg<br>Cards</div>
+      </div>
+      <div class="ds-col">
+        <div style="width:80px;height:80px;background:var(--pool-light);border:2px solid var(--pool-blue);border-radius:28px;"></div>
+        <div class="ds-label">28px · --r-xl<br>Modals</div>
+      </div>
+      <div class="ds-col">
+        <div style="width:64px;height:64px;background:var(--pool-light);border:2px solid var(--pool-blue);border-radius:50%;"></div>
+        <div class="ds-label">50% · --r-full<br>Avatars, nav</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="border-top:1px solid var(--border);padding-top:var(--sp-6);margin-top:var(--sp-6);display:flex;justify-content:space-between;align-items:center;">
+    <div class="wordmark" style="font-size:16px;">
+      <span class="wordmark-icon" style="width:24px;height:24px;font-size:12px;">🏊</span>
+      Mística Design System
+    </div>
+    <div style="font-size:12px;color:var(--text-secondary);">v1.0 · Airbnb-inspired · Plus Jakarta Sans · April 2026</div>
+  </div>
+
+</div>
+</body>
+</html>
