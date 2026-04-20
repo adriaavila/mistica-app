@@ -33,7 +33,6 @@ export default function NuevoAlumnoPage() {
     const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = "Nombre requerido";
     if (!form.phone.trim()) e.phone = "Teléfono requerido";
-    if (!form.dob) e.dob = "Fecha de nacimiento requerida";
     if (!form.timeSlotId) e.timeSlotId = "Selecciona un horario";
     return e;
   };
@@ -47,7 +46,7 @@ export default function NuevoAlumnoPage() {
       await create({
         name: form.name.trim(),
         phone: form.phone.trim(),
-        dob: form.dob,
+        dob: form.dob || undefined,
         enrollmentDate: form.enrollmentDate,
         modality: form.modality as "lmv" | "mj" | "aquagym3x" | "aquagym5x",
         timeSlotId: form.timeSlotId as Id<"timeSlots">,
@@ -66,7 +65,7 @@ export default function NuevoAlumnoPage() {
       <form onSubmit={handleSubmit} style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
         <Input label="Nombre completo" value={form.name} onChange={e => set("name", e.target.value)} placeholder="Ej. María García" error={errors.name} />
         <Input label="Teléfono" value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="Ej. 0412-1234567" type="tel" error={errors.phone} />
-        <Input label="Fecha de nacimiento" value={form.dob} onChange={e => set("dob", e.target.value)} type="date" error={errors.dob} />
+        <Input label="Fecha de nacimiento (opcional)" value={form.dob} onChange={e => set("dob", e.target.value)} type="date" />
         <Input label="Fecha de inscripción" value={form.enrollmentDate} onChange={e => set("enrollmentDate", e.target.value)} type="date" />
         <Select label="Modalidad" value={form.modality} onChange={e => { set("modality", e.target.value); set("timeSlotId", ""); }} options={modalityOptions} />
         <Select label="Horario" value={form.timeSlotId} onChange={e => set("timeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar horario..." }, ...slotOptions]} error={errors.timeSlotId} />

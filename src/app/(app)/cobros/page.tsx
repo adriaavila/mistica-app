@@ -34,6 +34,111 @@ type PaidPayment = {
   student?: { name: string; phone: string } | null;
 };
 
+type PaySheetTarget = {
+  id: Id<"payments">;
+  amount: number;
+  paidAmount: number;
+  studentName: string;
+};
+
+function PaySheet({
+  target,
+  currency,
+  onClose,
+  onDone,
+}: {
+  target: PaySheetTarget;
+  currency: string;
+  onClose: () => void;
+  onDone: (method: "qr" | "cash") => void;
+}) {
+  const markPaidMut = useMutation(api.payments.markPaid);
+  const addPartial = useMutation(api.payments.addPartialPayment);
+  const remaining = target.amount - target.paidAmount;
+  const [method, setMethod] = useState<"qr" | "cash">("cash");
+  const [isPartial, setIsPartial] = useState(false);
+  const [partialAmt, setPartialAmt] = useState(String(remaining));
+  const [loading, setLoading] = useState(false);
+
+  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 };
+  const inputStyle: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1.5px solid var(--border)", fontSize: 15, fontFamily: "var(--font)", marginBottom: 16, boxSizing: "border-box", background: "var(--surface)" };
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    if (isPartial) {
+      const amt = parseFloat(partialAmt);
+      if (!amt || amt <= 0) { setLoading(false); return; }
+      await addPartial({ id: target.id, amount: amt, paymentMethod: method });
+      onClose();
+    } else {
+      await markPaidMut({ id: target.id, paymentMethod: method });
+      onDone(method);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      onClick={onClose}
+    >
+      <div
+        style={{ width: "100%", maxWidth: 480, background: "#fff", borderRadius: "20px 20px 0 0", padding: "24px 20px calc(28px + env(safe-area-inset-bottom))", fontFamily: "var(--font)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Registrar pago</div>
+        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16 }}>{target.studentName} · {formatCurrency(target.amount, currency)}</div>
+
+        {target.paidAmount > 0 && (
+          <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "var(--text-secondary)" }}>
+            Abonado: <strong>{formatCurrency(target.paidAmount, currency)}</strong> · Resta: <strong>{formatCurrency(remaining, currency)}</strong>
+          </div>
+        )}
+
+        <label style={labelStyle}>Método de pago</label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {(["cash", "qr"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMethod(m)}
+              style={{
+                flex: 1, padding: "10px", borderRadius: 10, border: "2px solid",
+                borderColor: method === m ? "var(--pool-blue)" : "var(--border)",
+                background: method === m ? "var(--pool-light)" : "transparent",
+                color: method === m ? "var(--pool-blue)" : "var(--text-secondary)",
+                fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "var(--font)",
+              }}
+            >{m === "cash" ? "💵 Efectivo" : "📱 QR"}</button>
+          ))}
+        </div>
+
+        <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, cursor: "pointer" }}>
+          <input type="checkbox" checked={isPartial} onChange={(e) => setIsPartial(e.target.checked)} style={{ width: 16, height: 16 }} />
+          Pago parcial
+        </label>
+
+        {isPartial && (
+          <>
+            <label style={labelStyle}>Monto a abonar ({currency})</label>
+            <input type="number" value={partialAmt} onChange={(e) => setPartialAmt(e.target.value)} style={inputStyle} />
+          </>
+        )}
+
+        <button
+          onClick={handleConfirm} disabled={loading}
+          style={{
+            width: "100%", padding: "14px",
+            background: loading ? "var(--surface-2)" : "var(--pool-blue)",
+            color: loading ? "var(--text-secondary)" : "#fff",
+            border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700,
+            cursor: loading ? "default" : "pointer", fontFamily: "var(--font)",
+          }}
+        >{loading ? "Guardando…" : isPartial ? "Registrar abono" : "Confirmar pago"}</button>
+      </div>
+    </div>
+  );
+}
+
 function WhatsAppModal({ payment, onClose, currency }: {
   payment: PaidPayment;
   onClose: () => void;
@@ -192,6 +297,7 @@ function GenerarModal({ onClose }: { onClose: () => void }) {
 
 function RecordatoriosModal({ onClose, currency }: { onClose: () => void; currency: string }) {
   const overduePayments = useQuery(api.payments.listOverdue);
+  const removePayment = useMutation(api.payments.remove);
   const [sent, setSent] = useState<Set<string>>(new Set());
 
   return (
@@ -243,22 +349,33 @@ function RecordatoriosModal({ onClose, currency }: { onClose: () => void; curren
                     <div style={{ fontSize: 12, color: "var(--overdue-coral)", fontWeight: 600 }}>{rel.label}</div>
                     <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{monto} · {concepto}</div>
                   </div>
-                  {url ? (
-                    <a
-                      href={url} target="_blank" rel="noopener noreferrer"
-                      onClick={() => setSent(prev => new Set([...prev, p._id]))}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    {url ? (
+                      <a
+                        href={url} target="_blank" rel="noopener noreferrer"
+                        onClick={() => setSent(prev => new Set([...prev, p._id]))}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 5,
+                          padding: "8px 12px", borderRadius: 10,
+                          background: wasSent ? "var(--surface-2)" : "#25D366",
+                          color: wasSent ? "var(--text-secondary)" : "#fff",
+                          fontSize: 12, fontWeight: 700, textDecoration: "none",
+                          fontFamily: "var(--font)",
+                        }}
+                      >{wasSent ? "✓ Enviado" : "📲 WS"}</a>
+                    ) : (
+                      <span style={{ fontSize: 11, color: "var(--text-disabled)" }}>Sin tel.</span>
+                    )}
+                    <button
+                      onClick={() => removePayment({ id: p._id as Id<"payments"> })}
                       style={{
-                        display: "flex", alignItems: "center", gap: 5,
-                        padding: "8px 12px", borderRadius: 10, flexShrink: 0,
-                        background: wasSent ? "var(--surface-2)" : "#25D366",
-                        color: wasSent ? "var(--text-secondary)" : "#fff",
-                        fontSize: 12, fontWeight: 700, textDecoration: "none",
-                        fontFamily: "var(--font)",
+                        background: "var(--overdue-light)", border: "none", borderRadius: 8,
+                        padding: "8px 10px", fontSize: 13, cursor: "pointer",
+                        color: "var(--overdue-coral)", fontFamily: "var(--font)",
                       }}
-                    >{wasSent ? "✓ Enviado" : "📲 WS"}</a>
-                  ) : (
-                    <span style={{ fontSize: 11, color: "var(--text-disabled)" }}>Sin tel.</span>
-                  )}
+                      title="Eliminar cobro"
+                    >🗑</button>
+                  </div>
                 </div>
               );
             })
@@ -276,11 +393,11 @@ function CobrosContent() {
   const [whatsappPayment, setWhatsappPayment] = useState<PaidPayment | null>(null);
   const [showGenerar, setShowGenerar] = useState(false);
   const [showRecordatorios, setShowRecordatorios] = useState(false);
+  const [paySheetTarget, setPaySheetTarget] = useState<PaySheetTarget | null>(null);
 
   const payments = useQuery(api.payments.listAll, {});
   const config = useQuery(api.appConfig.getAll);
   const currency = config?.currency ?? "Bs";
-  const markPaid = useMutation(api.payments.markPaid);
   const markPending = useMutation(api.payments.markPending);
 
   const months6 = getLast6Months();
@@ -313,8 +430,16 @@ function CobrosContent() {
     p.status !== "paid" && p.dueDate < new Date().toISOString().split("T")[0]
   ).length ?? 0;
 
-  const handleMarkPaid = async (payment: typeof filtered[0]) => {
-    await markPaid({ id: payment._id as Id<"payments"> });
+  const openPaySheet = (payment: typeof filtered[0]) => {
+    setPaySheetTarget({
+      id: payment._id as Id<"payments">,
+      amount: payment.amount,
+      paidAmount: (payment as { paidAmount?: number }).paidAmount ?? 0,
+      studentName: payment.student?.name ?? "—",
+    });
+  };
+
+  const handlePaidDone = (payment: typeof filtered[0]) => {
     setWhatsappPayment({
       _id: payment._id as Id<"payments">,
       amount: payment.amount,
@@ -409,6 +534,9 @@ function CobrosContent() {
             const rel = getRelativeDays(payment.dueDate);
             const isOverdue = payment.effectiveStatus === "overdue";
             const isPaid = payment.effectiveStatus === "paid";
+            const alreadyPaid = (payment as { paidAmount?: number }).paidAmount ?? 0;
+            const isPartial = !isPaid && alreadyPaid > 0;
+            const methodLabel = (payment as { paymentMethod?: string }).paymentMethod === "qr" ? " · QR" : (payment as { paymentMethod?: string }).paymentMethod === "cash" ? " · Efectivo" : "";
             return (
               <div
                 key={payment._id}
@@ -431,8 +559,13 @@ function CobrosContent() {
                     fontSize: 12, marginTop: 3, fontWeight: 600,
                     color: isPaid ? "var(--paid-green)" : isOverdue ? "var(--overdue-coral)" : rel.urgency === "soon" ? "var(--pending-amber)" : "var(--text-secondary)",
                   }}>
-                    {isPaid ? `Pagado ${payment.paidAt ? formatDate(payment.paidAt) : ""}` : rel.label}
+                    {isPaid ? `Pagado ${payment.paidAt ? formatDate(payment.paidAt) : ""}${methodLabel}` : isPartial ? `Abonado ${formatCurrency(alreadyPaid, currency)} · ${rel.label}` : rel.label}
                   </div>
+                  {isPartial && (
+                    <div style={{ marginTop: 5, height: 4, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${Math.min(100, (alreadyPaid / payment.amount) * 100)}%`, background: "var(--pending-amber)", borderRadius: 99 }} />
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
                   <span style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>
@@ -440,7 +573,7 @@ function CobrosContent() {
                   </span>
                   {!isPaid ? (
                     <button
-                      onClick={() => handleMarkPaid(payment)}
+                      onClick={() => openPaySheet(payment)}
                       style={{
                         background: "var(--paid-green)", color: "#fff", border: "none",
                         borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700,
@@ -464,6 +597,20 @@ function CobrosContent() {
         )}
       </div>
 
+      {paySheetTarget && (() => {
+        const payment = filtered.find(p => p._id === paySheetTarget.id);
+        return (
+          <PaySheet
+            target={paySheetTarget}
+            currency={currency}
+            onClose={() => setPaySheetTarget(null)}
+            onDone={() => {
+              if (payment) handlePaidDone(payment);
+              setPaySheetTarget(null);
+            }}
+          />
+        );
+      })()}
       {whatsappPayment && (
         <WhatsAppModal
           payment={whatsappPayment}

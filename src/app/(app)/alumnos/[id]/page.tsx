@@ -224,17 +224,132 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box", background: "var(--surface)",
 };
 
+function getSeniorityMonths(enrollmentDate: string, originalEnrollmentDate?: string) {
+  const base = originalEnrollmentDate ?? enrollmentDate;
+  const start = new Date(base + "T00:00:00");
+  const now = new Date();
+  return (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth();
+}
+
+function PaySheet({
+  paymentId,
+  totalAmount,
+  alreadyPaid,
+  currency,
+  onClose,
+  onMarkPaid,
+  onPartial,
+}: {
+  paymentId: Id<"payments">;
+  totalAmount: number;
+  alreadyPaid: number;
+  currency: string;
+  onClose: () => void;
+  onMarkPaid: (method: "qr" | "cash") => void;
+  onPartial: (amount: number, method: "qr" | "cash") => void;
+}) {
+  const remaining = totalAmount - alreadyPaid;
+  const [method, setMethod] = useState<"qr" | "cash">("cash");
+  const [isPartial, setIsPartial] = useState(false);
+  const [partialAmt, setPartialAmt] = useState(String(remaining));
+  const [loading, setLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    if (isPartial) {
+      const amt = parseFloat(partialAmt);
+      if (!amt || amt <= 0) { setLoading(false); return; }
+      await onPartial(amt, method);
+    } else {
+      await onMarkPaid(method);
+    }
+    setLoading(false);
+    onClose();
+  };
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      onClick={onClose}
+    >
+      <div
+        style={{ width: "100%", maxWidth: 480, background: "#fff", borderRadius: "20px 20px 0 0", padding: "24px 20px calc(28px + env(safe-area-inset-bottom))", fontFamily: "var(--font)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Registrar pago</div>
+
+        {alreadyPaid > 0 && (
+          <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "var(--text-secondary)" }}>
+            Pagado parcialmente: <strong>{formatCurrency(alreadyPaid, currency)}</strong> de {formatCurrency(totalAmount, currency)} · Resta: <strong>{formatCurrency(remaining, currency)}</strong>
+          </div>
+        )}
+
+        <label style={labelStyle}>Método de pago</label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {(["cash", "qr"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMethod(m)}
+              style={{
+                flex: 1, padding: "10px", borderRadius: 10, border: "2px solid",
+                borderColor: method === m ? "var(--pool-blue)" : "var(--border)",
+                background: method === m ? "var(--pool-light)" : "transparent",
+                color: method === m ? "var(--pool-blue)" : "var(--text-secondary)",
+                fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "var(--font)",
+              }}
+            >{m === "cash" ? "💵 Efectivo" : "📱 QR"}</button>
+          ))}
+        </div>
+
+        <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, cursor: "pointer" }}>
+          <input
+            type="checkbox" checked={isPartial}
+            onChange={(e) => setIsPartial(e.target.checked)}
+            style={{ width: 16, height: 16 }}
+          />
+          Pago parcial
+        </label>
+
+        {isPartial && (
+          <>
+            <label style={labelStyle}>Monto a abonar ({currency})</label>
+            <input
+              type="number" value={partialAmt}
+              onChange={(e) => setPartialAmt(e.target.value)}
+              style={inputStyle}
+            />
+          </>
+        )}
+
+        <button
+          onClick={handleConfirm} disabled={loading}
+          style={{
+            width: "100%", padding: "14px",
+            background: loading ? "var(--surface-2)" : "var(--pool-blue)",
+            color: loading ? "var(--text-secondary)" : "#fff",
+            border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700,
+            cursor: loading ? "default" : "pointer", fontFamily: "var(--font)",
+          }}
+        >{loading ? "Guardando…" : isPartial ? "Registrar abono" : "Confirmar pago"}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function StudentDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const student = useQuery(api.students.getWithDetails, { id: id as Id<"students"> });
   const markPaid = useMutation(api.payments.markPaid);
+  const addPartialPayment = useMutation(api.payments.addPartialPayment);
   const markPending = useMutation(api.payments.markPending);
   const removeStudent = useMutation(api.students.remove);
   const config = useQuery(api.appConfig.getAll);
 
   const [tab, setTab] = useState("info");
   const [showAddPayment, setShowAddPayment] = useState(false);
+  const [paySheetPaymentId, setPaySheetPaymentId] = useState<Id<"payments"> | null>(null);
+  const [paySheetAmount, setPaySheetAmount] = useState(0);
 
   const currency = config?.currency ?? "Bs";
 
@@ -311,7 +426,7 @@ export default function StudentDetailPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {[
                   { icon: "📞", label: "Teléfono", value: student.phone },
-                  { icon: "🎂", label: "Nacimiento", value: formatDate(student.dob) },
+                  ...(student.dob ? [{ icon: "🎂", label: "Nacimiento", value: formatDate(student.dob) }] : []),
                   { icon: "📅", label: "Inscripción", value: formatDate(student.enrollmentDate) },
                 ].map(row => (
                   <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -337,6 +452,43 @@ export default function StudentDetailPage() {
                 </a>
               )}
             </Card>
+
+            {(() => {
+              const months = getSeniorityMonths(student.enrollmentDate, student.originalEnrollmentDate);
+              const milestones = [6, 12];
+              const reached = milestones.filter(m => months >= m);
+              const next = milestones.find(m => months < m);
+              const isModified = !!student.originalEnrollmentDate;
+              return (
+                <Card padding="16px">
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Antigüedad</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: "var(--pool-blue)" }}>
+                        {months} {months === 1 ? "mes" : "meses"}
+                      </div>
+                      {isModified && (
+                        <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
+                          Desde {formatDate(student.originalEnrollmentDate!)}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                      {reached.map(m => (
+                        <span key={m} style={{ fontSize: 12, fontWeight: 700, color: "var(--paid-green)", background: "#DCFCE7", borderRadius: 99, padding: "2px 8px" }}>
+                          🏅 {m === 12 ? "1 año" : "6 meses"}
+                        </span>
+                      ))}
+                      {next && (
+                        <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                          Próximo: {next === 12 ? "1 año" : "6 meses"} (en {next - months} {next - months === 1 ? "mes" : "meses"})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })()}
 
             {student.attendanceRate !== null && (
               <Card padding="16px">
@@ -387,6 +539,9 @@ export default function StudentDetailPage() {
                   const concepto = payment.type === "enrollment"
                     ? "Inscripción"
                     : `Mensualidad${payment.month ? " " + formatMonth(payment.month) : ""}`;
+                  const alreadyPaid = payment.paidAmount ?? 0;
+                  const isPartial = !isPaid && alreadyPaid > 0;
+                  const methodLabel = payment.paymentMethod === "qr" ? " · QR" : payment.paymentMethod === "cash" ? " · Efectivo" : "";
 
                   return (
                     <Card
@@ -403,8 +558,13 @@ export default function StudentDetailPage() {
                             fontSize: 12, marginTop: 2, fontWeight: 600,
                             color: isPaid ? "var(--paid-green)" : isOverdue ? "var(--overdue-coral)" : rel.urgency === "soon" ? "var(--pending-amber)" : "var(--text-secondary)",
                           }}>
-                            {isPaid ? `Pagado ${payment.paidAt ? formatDate(payment.paidAt) : ""}` : rel.label}
+                            {isPaid ? `Pagado ${payment.paidAt ? formatDate(payment.paidAt) : ""}${methodLabel}` : isPartial ? `Abonado ${formatCurrency(alreadyPaid, currency)} · ${rel.label}` : rel.label}
                           </div>
+                          {isPartial && (
+                            <div style={{ marginTop: 6, height: 4, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden" }}>
+                              <div style={{ height: "100%", width: `${Math.min(100, (alreadyPaid / payment.amount) * 100)}%`, background: "var(--pending-amber)", borderRadius: 99 }} />
+                            </div>
+                          )}
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                           <span style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>
@@ -412,7 +572,7 @@ export default function StudentDetailPage() {
                           </span>
                           {!isPaid ? (
                             <button
-                              onClick={() => markPaid({ id: payment._id })}
+                              onClick={() => { setPaySheetPaymentId(payment._id); setPaySheetAmount(payment.amount); }}
                               style={{
                                 background: "var(--paid-green)", color: "#fff", border: "none",
                                 borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600,
@@ -452,6 +612,22 @@ export default function StudentDetailPage() {
           onClose={() => setShowAddPayment(false)}
         />
       )}
+
+      {paySheetPaymentId && (() => {
+        const payment = student.payments.find(p => p._id === paySheetPaymentId);
+        const alreadyPaid = payment?.paidAmount ?? 0;
+        return (
+          <PaySheet
+            paymentId={paySheetPaymentId}
+            totalAmount={paySheetAmount}
+            alreadyPaid={alreadyPaid}
+            currency={currency}
+            onClose={() => setPaySheetPaymentId(null)}
+            onMarkPaid={(method) => markPaid({ id: paySheetPaymentId, paymentMethod: method })}
+            onPartial={(amount, method) => addPartialPayment({ id: paySheetPaymentId, amount, paymentMethod: method })}
+          />
+        );
+      })()}
     </div>
   );
 }

@@ -129,7 +129,7 @@ export const create = mutation({
   args: {
     name: v.string(),
     phone: v.string(),
-    dob: v.string(),
+    dob: v.optional(v.string()),
     enrollmentDate: v.string(),
     modality: v.union(
       v.literal("lmv"),
@@ -240,7 +240,11 @@ export const update = mutation({
     const { id, ...fields } = args;
     const existing = await ctx.db.get(id);
     if (!existing) throw new Error("Student not found");
-    await ctx.db.patch(id, fields);
+    const patch: typeof fields & { originalEnrollmentDate?: string } = { ...fields };
+    if (fields.enrollmentDate && fields.enrollmentDate !== existing.enrollmentDate && !existing.originalEnrollmentDate) {
+      patch.originalEnrollmentDate = existing.enrollmentDate;
+    }
+    await ctx.db.patch(id, patch);
   },
 });
 

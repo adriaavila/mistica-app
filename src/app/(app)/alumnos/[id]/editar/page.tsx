@@ -23,7 +23,7 @@ export default function EditarAlumnoPage() {
 
   useEffect(() => {
     if (student && !ready) {
-      setForm({ name: student.name, phone: student.phone, dob: student.dob, enrollmentDate: student.enrollmentDate, modality: student.modality, timeSlotId: student.timeSlotId, status: student.status, notes: student.notes ?? "" });
+      setForm({ name: student.name, phone: student.phone, dob: student.dob ?? "", enrollmentDate: student.enrollmentDate, modality: student.modality, timeSlotId: student.timeSlotId, status: student.status, notes: student.notes ?? "" });
       setReady(true);
     }
   }, [student, ready]);
@@ -35,7 +35,7 @@ export default function EditarAlumnoPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await update({ id: id as Id<"students">, name: form.name, phone: form.phone, dob: form.dob, enrollmentDate: form.enrollmentDate, modality: form.modality as "lmv"|"mj"|"aquagym3x"|"aquagym5x", timeSlotId: form.timeSlotId as Id<"timeSlots">, status: form.status as "active"|"suspended"|"withdrawn", notes: form.notes || undefined });
+      await update({ id: id as Id<"students">, name: form.name, phone: form.phone, dob: form.dob || undefined, enrollmentDate: form.enrollmentDate, modality: form.modality as "lmv"|"mj"|"aquagym3x"|"aquagym5x", timeSlotId: form.timeSlotId as Id<"timeSlots">, status: form.status as "active"|"suspended"|"withdrawn", notes: form.notes || undefined });
       router.push(`/alumnos/${id}`);
     } catch { setLoading(false); }
   };
