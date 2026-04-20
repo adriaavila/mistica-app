@@ -42,7 +42,11 @@ export const listAll = query({
 });
 
 export const markPaid = mutation({
-  args: { id: v.id("payments"), paidAt: v.optional(v.string()) },
+  args: {
+    id: v.id("payments"),
+    paidAt: v.optional(v.string()),
+    paymentMethod: v.optional(v.union(v.literal("qr"), v.literal("cash"))),
+  },
   handler: async (ctx, args) => {
     const today = new Date().toISOString().split("T")[0];
     const payment = await ctx.db.get(args.id);
@@ -51,12 +55,12 @@ export const markPaid = mutation({
     await ctx.db.patch(args.id, {
       status: "paid",
       paidAt: args.paidAt ?? today,
+      paymentMethod: args.paymentMethod,
     });
 
     if (payment.type === "monthly") {
       const student = await ctx.db.get(payment.studentId);
       if (!student) return;
-
       const enrollDay = new Date(student.enrollmentDate + "T00:00:00").getDate();
       const currentDue = new Date(payment.dueDate + "T00:00:00");
       const nextDue = new Date(currentDue);
@@ -65,13 +69,11 @@ export const markPaid = mutation({
       nextDue.setDate(Math.min(enrollDay, lastDay));
       const nextDueStr = nextDue.toISOString().split("T")[0];
       const nextMonthStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, "0")}`;
-
       const existing = await ctx.db
         .query("payments")
         .withIndex("by_student", (q) => q.eq("studentId", payment.studentId))
         .collect()
         .then((ps) => ps.find((p) => p.type === "monthly" && p.month === nextMonthStr));
-
       if (!existing) {
         await ctx.db.insert("payments", {
           studentId: payment.studentId,
@@ -82,6 +84,63 @@ export const markPaid = mutation({
           month: nextMonthStr,
         });
       }
+    }
+  },
+});
+
+export const addPartialPayment = mutation({
+  args: {
+    id: v.id("payments"),
+    amount: v.number(),
+    paymentMethod: v.optional(v.union(v.literal("qr"), v.literal("cash"))),
+    paidAt: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const today = new Date().toISOString().split("T")[0];
+    const payment = await ctx.db.get(args.id);
+    if (!payment) return;
+
+    const newPaidAmount = (payment.paidAmount ?? 0) + args.amount;
+
+    if (newPaidAmount >= payment.amount) {
+      await ctx.db.patch(args.id, {
+        paidAmount: newPaidAmount,
+        paymentMethod: args.paymentMethod,
+        status: "paid",
+        paidAt: args.paidAt ?? today,
+      });
+      if (payment.type === "monthly") {
+        const student = await ctx.db.get(payment.studentId);
+        if (!student) return;
+        const enrollDay = new Date(student.enrollmentDate + "T00:00:00").getDate();
+        const currentDue = new Date(payment.dueDate + "T00:00:00");
+        const nextDue = new Date(currentDue);
+        nextDue.setMonth(nextDue.getMonth() + 1);
+        const lastDay = new Date(nextDue.getFullYear(), nextDue.getMonth() + 1, 0).getDate();
+        nextDue.setDate(Math.min(enrollDay, lastDay));
+        const nextDueStr = nextDue.toISOString().split("T")[0];
+        const nextMonthStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, "0")}`;
+        const existing = await ctx.db
+          .query("payments")
+          .withIndex("by_student", (q) => q.eq("studentId", payment.studentId))
+          .collect()
+          .then((ps) => ps.find((p) => p.type === "monthly" && p.month === nextMonthStr));
+        if (!existing) {
+          await ctx.db.insert("payments", {
+            studentId: payment.studentId,
+            type: "monthly",
+            amount: payment.amount,
+            dueDate: nextDueStr,
+            status: "pending",
+            month: nextMonthStr,
+          });
+        }
+      }
+    } else {
+      await ctx.db.patch(args.id, {
+        paidAmount: newPaidAmount,
+        paymentMethod: args.paymentMethod,
+      });
     }
   },
 });
@@ -324,6 +383,14 @@ export const generateMonthly = mutation({
       created++;
     }
     return { created };
+  },
+});
+
+export const remove = mutation({
+  args: { id: v.id("payments") },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.id);
+    if (existing) await ctx.db.delete(args.id);
   },
 });
 

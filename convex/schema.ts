@@ -5,7 +5,7 @@ export default defineSchema({
   students: defineTable({
     name: v.string(),
     phone: v.string(),
-    dob: v.string(),
+    dob: v.optional(v.string()),
     enrollmentDate: v.string(),
     modality: v.union(
       v.literal("lmv"),
@@ -21,6 +21,7 @@ export default defineSchema({
     ),
     notes: v.optional(v.string()),
     createdAt: v.number(),
+    originalEnrollmentDate: v.optional(v.string()),
   })
     .index("by_status", ["status"])
     .index("by_modality", ["modality"])
@@ -60,6 +61,8 @@ export default defineSchema({
     ),
     notes: v.optional(v.string()),
     month: v.optional(v.string()),
+    paymentMethod: v.optional(v.union(v.literal("qr"), v.literal("cash"))),
+    paidAmount: v.optional(v.number()),
   })
     .index("by_student", ["studentId"])
     .index("by_status", ["status"])
