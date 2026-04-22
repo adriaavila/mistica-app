@@ -189,6 +189,11 @@ function AsistenciaContent() {
 
   const slots = useQuery(api.timeSlots.list, { activeOnly: true });
   const upsertAttendance = useMutation(api.attendance.upsert);
+  const overduePayments = useQuery(api.payments.listOverdue);
+  const overdueStudentIds = useMemo(
+    () => new Set((overduePayments ?? []).map(p => p.studentId)),
+    [overduePayments]
+  );
 
   const dateDay = new Date(date + "T12:00:00").toLocaleDateString("en-US", {
     weekday: "short",
@@ -320,12 +325,14 @@ function AsistenciaContent() {
           studentsData.map((student) => {
             const isPresent = student.attendance?.present === true;
             const isAbsent = student.attendance?.present === false;
+            const inMora = overdueStudentIds.has(student._id);
             return (
               <div
                 key={student._id}
                 style={{
                   background: "var(--white)", borderRadius: 14, padding: "12px 14px",
                   boxShadow: "var(--shadow-card)", display: "flex", alignItems: "center", gap: 12,
+                  borderLeft: inMora ? "3px solid var(--overdue-coral)" : undefined,
                 }}
               >
                 <Avatar name={student.name} size={40} />
@@ -342,9 +349,13 @@ function AsistenciaContent() {
                     display: "flex", alignItems: "center", gap: 6,
                   }}>
                     {student.name}
-                    <span style={{ fontSize: 11, color: "var(--pool-blue)", fontWeight: 600 }}>
-                      historial
-                    </span>
+                    {inMora && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, color: "var(--overdue-coral)",
+                        background: "var(--overdue-light)", borderRadius: 99,
+                        padding: "2px 7px", lineHeight: 1.4,
+                      }}>mora</span>
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: isPresent ? "var(--paid-green)" : isAbsent ? "var(--overdue-coral)" : "var(--text-secondary)", marginTop: 2, fontWeight: isPresent || isAbsent ? 600 : 400 }}>
                     {isPresent ? "✓ Presente" : isAbsent ? "✗ Ausente" : "Sin registrar"}

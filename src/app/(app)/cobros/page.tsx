@@ -390,6 +390,7 @@ function CobrosContent() {
   const searchParams = useSearchParams();
   const [filter, setFilter] = useState(searchParams.get("filter") ?? "all");
   const [monthFilter, setMonthFilter] = useState("all");
+  const [slotFilter, setSlotFilter] = useState("all");
   const [whatsappPayment, setWhatsappPayment] = useState<PaidPayment | null>(null);
   const [showGenerar, setShowGenerar] = useState(false);
   const [showRecordatorios, setShowRecordatorios] = useState(false);
@@ -397,6 +398,7 @@ function CobrosContent() {
 
   const payments = useQuery(api.payments.listAll, {});
   const config = useQuery(api.appConfig.getAll);
+  const timeSlots = useQuery(api.timeSlots.list, { activeOnly: true });
   const currency = config?.currency ?? "Bs";
   const markPending = useMutation(api.payments.markPending);
 
@@ -417,6 +419,7 @@ function CobrosContent() {
         return true;
       })
       .filter(p => monthFilter === "all" || p.dueDate.startsWith(monthFilter))
+      .filter(p => slotFilter === "all" || p.student?.timeSlotId === slotFilter)
       .sort((a, b) => {
         const order = { overdue: 0, pending: 1, paid: 2 };
         const oa = order[a.effectiveStatus] ?? 1;
@@ -505,6 +508,27 @@ function CobrosContent() {
             >{opt.label}</button>
           ))}
         </div>
+
+        {/* Turno filter chips */}
+        {timeSlots && timeSlots.length > 0 && (
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 10, scrollbarWidth: "none" }}>
+            {[{ value: "all", label: "Todos los turnos" }, ...timeSlots.map(s => ({ value: s._id, label: `${s.label} ${s.startTime}` }))].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setSlotFilter(opt.value)}
+                style={{
+                  flexShrink: 0, padding: "5px 12px", borderRadius: 99,
+                  border: "1.5px solid",
+                  borderColor: slotFilter === opt.value ? "var(--pending-amber)" : "var(--border)",
+                  background: slotFilter === opt.value ? "#FFF7ED" : "transparent",
+                  color: slotFilter === opt.value ? "#9A3412" : "var(--text-secondary)",
+                  fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  fontFamily: "var(--font)", whiteSpace: "nowrap",
+                }}
+              >{opt.label}</button>
+            ))}
+          </div>
+        )}
 
         <div style={{ paddingBottom: 12 }}>
           <SegmentedControl
