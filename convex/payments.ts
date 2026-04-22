@@ -187,11 +187,15 @@ export const getDashboardStats = query({
       .withIndex("by_status", (q) => q.eq("status", "active"))
       .collect();
 
-    const overdueCount = allPayments.filter(
-      (p) => p.status !== "paid" && p.dueDate < today
-    ).length;
+const overdueCount = allPayments.filter(
+  (p) => p.status !== "paid" && p.dueDate < today
+).length;
 
-    const expiringSoon = allPayments.filter(
+const overdueEnrollmentCount = allPayments.filter(
+  (p) => p.type === "enrollment" && p.status !== "paid" && p.dueDate < today
+).length;
+
+const expiringSoon = allPayments.filter(
       (p) =>
         p.status !== "paid" &&
         p.dueDate >= today &&
@@ -205,12 +209,13 @@ export const getDashboardStats = query({
       )
       .reduce((sum, p) => sum + p.amount, 0);
 
-    return {
-      activeStudents: activeStudents.length,
-      overdueCount,
-      expiringSoon,
-      collectedThisMonth,
-    };
+return {
+  activeStudents: activeStudents.length,
+  overdueCount,
+  overdueEnrollmentCount,
+  expiringSoon,
+  collectedThisMonth,
+};
   },
 });
 
@@ -248,12 +253,16 @@ export const getAnalytics = query({
     // Payments breakdown (current state of monthly payments)
     const thisMonth = todayStr.substring(0, 7);
     let paid = 0, pending = 0, overdue = 0;
-    for (const p of allPayments) {
-      if (p.type !== "monthly") continue;
-      if (p.status === "paid" && p.paidAt?.startsWith(thisMonth)) paid++;
-      else if (p.status !== "paid" && p.dueDate < todayStr) overdue++;
-      else if (p.status !== "paid" && p.dueDate.startsWith(thisMonth)) pending++;
-    }
+for (const p of allPayments) {
+  if (p.type === "enrollment") {
+    if (p.status !== "paid" && p.dueDate < todayStr) overdue++;
+    continue;
+  }
+  if (p.type !== "monthly") continue;
+  if (p.status === "paid" && p.paidAt?.startsWith(thisMonth)) paid++;
+  else if (p.status !== "paid" && p.dueDate < todayStr) overdue++;
+  else if (p.status !== "paid" && p.dueDate.startsWith(thisMonth)) pending++;
+}
 
     // Modality distribution (active students)
     const modalityCounts: Record<string, number> = {
