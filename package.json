@@ -6,19 +6,21 @@
     "dev": "concurrently \"next dev --turbopack\" \"npx convex dev\"",
     "dev:next": "next dev --turbopack",
     "dev:convex": "npx convex dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@serwist/next": "^9.5.7",
     "clsx": "^2.1.1",
     "convex": "^1.35.1",
     "lucide-react": "^1.8.0",
     "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "serwist": "^9.5.7",
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {

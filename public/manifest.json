@@ -1,23 +1,57 @@
 {
-  "name": "Mística",
+  "name": "Mística - Rehabilitación Acuática",
   "short_name": "Mística",
-  "description": "Rehabilitación y gimnasia acuática",
+  "description": "Escuela de natación y rehabilitación acuática",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait",
   "background_color": "#F8FAFC",
   "theme_color": "#0EA5E9",
+  "lang": "es",
+  "dir": "ltr",
+  "categories": ["health", "fitness", "sports"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Alumnos",
+      "short_name": "Alumnos",
+      "url": "/alumnos",
+      "description": "Ver lista de alumnos"
+    },
+    {
+      "name": "Asistencia",
+      "short_name": "Asistencia",
+      "url": "/asistencia",
+      "description": "Registrar asistencia"
     }
   ]
 }
