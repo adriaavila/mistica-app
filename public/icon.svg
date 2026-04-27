@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" fill="#ffffff" stroke="#1a1a2e" stroke-width="2"/>
+
+  <!-- Flower petals (teardrops pointing inward toward center at 50,50) -->
+  <!-- Each petal: a teardrop shape, rotated around center -->
+
+  <!-- Top petal - Red (#C0392B) pointing down -->
+  <g transform="rotate(0, 50, 50)">
+    <ellipse cx="50" cy="28" rx="7" ry="9" fill="#C0392B"/>
+    <polygon points="43,31 57,31 50,42" fill="#C0392B"/>
+  </g>
+
+  <!-- Top-right petal - Olive green (#6B7C3A) -->
+  <g transform="rotate(51.4, 50, 50)">
+    <ellipse cx="50" cy="28" rx="7" ry="9" fill="#6B7C3A"/>
+    <polygon points="43,31 57,31 50,42" fill="#6B7C3A"/>
+  </g>
+
+  <!-- Right-bottom petal - Yellow/gold (#C9A832) -->
+  <g transform="rotate(102.8, 50, 50)">
+    <ellipse cx="50" cy="28" rx="7" ry="9" fill="#C9A832"/>
+    <polygon points="43,31 57,31 50,42" fill="#C9A832"/>
+  </g>
+
+  <!-- Bottom petal - Pink/salmon (#E07070) -->
+  <g transform="rotate(154.3, 50, 50)">
+    <ellipse cx="50" cy="28" rx="7" ry="9" fill="#E07070"/>
+    <polygon points="43,31 57,31 50,42" fill="#E07070"/>
+  </g>
+
+  <!-- Bottom-left petal - Dark navy (#1B3A6B) -->
+  <g transform="rotate(205.7, 50, 50)">
+    <ellipse cx="50" cy="28" rx="7" ry="9" fill="#1B3A6B"/>
+    <polygon points="43,31 57,31 50,42" fill="#1B3A6B"/>
+  </g>
+
+  <!-- Left petal - Blue (#3B9ED4) -->
+  <g transform="rotate(257.1, 50, 50)">
+    <ellipse cx="50" cy="28" rx="7" ry="9" fill="#3B9ED4"/>
+    <polygon points="43,31 57,31 50,42" fill="#3B9ED4"/>
+  </g>
+
+  <!-- Top-left petal - Teal blue (#2980B9) -->
+  <g transform="rotate(308.6, 50, 50)">
+    <ellipse cx="50" cy="28" rx="7" ry="9" fill="#2980B9"/>
+    <polygon points="43,31 57,31 50,42" fill="#2980B9"/>
+  </g>
+
+  <!-- Center circle - Tan/beige (#C4AA7A) -->
+  <circle cx="50" cy="50" r="9" fill="#C4AA7A"/>
+</svg>
