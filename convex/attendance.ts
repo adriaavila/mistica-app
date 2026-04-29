@@ -73,12 +73,48 @@ export const getStudentsForSlot = query({
 
     const attendanceMap = new Map(attendance.map((a) => [a.studentId, a]));
 
-    return activeStudents
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((student) => ({
-        ...student,
-        attendance: attendanceMap.get(student._id) ?? null,
-      }));
+    const today = new Date().toISOString().split("T")[0];
+
+    const enriched = await Promise.all(
+      activeStudents
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(async (student) => {
+          const payments = await ctx.db
+            .query("payments")
+            .withIndex("by_student", (q) => q.eq("studentId", student._id))
+            .collect();
+          const monthly = payments
+            .filter((p) => p.type === "monthly")
+            .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+          const unpaid = monthly.filter((p) => p.status !== "paid");
+
+          let nextDue: { dueDate: string; status: string } | null = null;
+          if (unpaid.length > 0) {
+            const next = unpaid[0];
+            nextDue = {
+              dueDate: next.dueDate,
+              status: next.dueDate < today ? "overdue" : next.status,
+            };
+          } else if (monthly.length > 0) {
+            const lastPaid = monthly[monthly.length - 1];
+            const enrollDay = new Date(student.enrollmentDate + "T00:00:00").getDate();
+            const cur = new Date(lastPaid.dueDate + "T00:00:00");
+            const nd = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+            const lastDay = new Date(nd.getFullYear(), nd.getMonth() + 1, 0).getDate();
+            nd.setDate(Math.min(enrollDay, lastDay));
+            const ds = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, "0")}-${String(nd.getDate()).padStart(2, "0")}`;
+            nextDue = { dueDate: ds, status: "paid" };
+          }
+
+          return {
+            ...student,
+            attendance: attendanceMap.get(student._id) ?? null,
+            nextDue,
+          };
+        })
+    );
+
+    return enriched;
   },
 });
 

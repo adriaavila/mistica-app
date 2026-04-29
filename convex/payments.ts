@@ -63,11 +63,10 @@ export const markPaid = mutation({
       if (!student) return;
       const enrollDay = new Date(student.enrollmentDate + "T00:00:00").getDate();
       const currentDue = new Date(payment.dueDate + "T00:00:00");
-      const nextDue = new Date(currentDue);
-      nextDue.setMonth(nextDue.getMonth() + 1);
+      const nextDue = new Date(currentDue.getFullYear(), currentDue.getMonth() + 1, 1);
       const lastDay = new Date(nextDue.getFullYear(), nextDue.getMonth() + 1, 0).getDate();
       nextDue.setDate(Math.min(enrollDay, lastDay));
-      const nextDueStr = nextDue.toISOString().split("T")[0];
+      const nextDueStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, "0")}-${String(nextDue.getDate()).padStart(2, "0")}`;
       const nextMonthStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, "0")}`;
       const existing = await ctx.db
         .query("payments")
@@ -114,11 +113,10 @@ export const addPartialPayment = mutation({
         if (!student) return;
         const enrollDay = new Date(student.enrollmentDate + "T00:00:00").getDate();
         const currentDue = new Date(payment.dueDate + "T00:00:00");
-        const nextDue = new Date(currentDue);
-        nextDue.setMonth(nextDue.getMonth() + 1);
+        const nextDue = new Date(currentDue.getFullYear(), currentDue.getMonth() + 1, 1);
         const lastDay = new Date(nextDue.getFullYear(), nextDue.getMonth() + 1, 0).getDate();
         nextDue.setDate(Math.min(enrollDay, lastDay));
-        const nextDueStr = nextDue.toISOString().split("T")[0];
+        const nextDueStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, "0")}-${String(nextDue.getDate()).padStart(2, "0")}`;
         const nextMonthStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, "0")}`;
         const existing = await ctx.db
           .query("payments")
@@ -390,6 +388,54 @@ export const generateMonthly = mutation({
         month: args.month,
       });
       created++;
+    }
+    return { created };
+  },
+});
+
+export const backfillMissingMonths = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const today = new Date().toISOString().split("T")[0];
+    const todayMonth = today.substring(0, 7);
+    const students = await ctx.db.query("students").collect();
+    let created = 0;
+    for (const student of students) {
+      const payments = await ctx.db
+        .query("payments")
+        .withIndex("by_student", (q) => q.eq("studentId", student._id))
+        .collect();
+      const monthly = payments
+        .filter((p) => p.type === "monthly" && p.month)
+        .sort((a, b) => a.month!.localeCompare(b.month!));
+      if (monthly.length === 0) continue;
+      const earliest = monthly[0].month!;
+      const latest = monthly[monthly.length - 1].month!;
+      const endMonth = latest > todayMonth ? latest : todayMonth;
+      const enrollDay = new Date(student.enrollmentDate + "T00:00:00").getDate();
+      const baseAmount = monthly[monthly.length - 1].amount;
+      const have = new Set(monthly.map((p) => p.month!));
+      const [sy, sm] = earliest.split("-").map(Number);
+      const [ey, em] = endMonth.split("-").map(Number);
+      let y = sy, m = sm;
+      while (y < ey || (y === ey && m <= em)) {
+        const mStr = `${y}-${String(m).padStart(2, "0")}`;
+        if (!have.has(mStr)) {
+          const lastDay = new Date(y, m, 0).getDate();
+          const dueDate = `${mStr}-${String(Math.min(enrollDay, lastDay)).padStart(2, "0")}`;
+          await ctx.db.insert("payments", {
+            studentId: student._id,
+            type: "monthly",
+            amount: baseAmount,
+            dueDate,
+            status: "pending",
+            month: mStr,
+          });
+          created++;
+        }
+        m++;
+        if (m > 12) { m = 1; y++; }
+      }
     }
     return { created };
   },

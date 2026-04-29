@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import EmptyState from "@/components/ui/EmptyState";
 import BottomSheet from "@/components/ui/BottomSheet";
-import { todayStr, formatDate } from "@/lib/utils";
+import { todayStr, formatDate, getRelativeDays } from "@/lib/utils";
 import { Id } from "../../../../convex/_generated/dataModel";
 
 // Pick the best slot for today based on current clock time
@@ -349,6 +349,33 @@ function AsistenciaContent() {
                   <div style={{ fontSize: 12, color: isPresent ? "var(--paid-green)" : isAbsent ? "var(--overdue-coral)" : "var(--text-secondary)", marginTop: 2, fontWeight: isPresent || isAbsent ? 600 : 400 }}>
                     {isPresent ? "✓ Presente" : isAbsent ? "✗ Ausente" : "Sin registrar"}
                   </div>
+                  {student.nextDue && (() => {
+                    const rel = getRelativeDays(student.nextDue.dueDate);
+                    const isPaid = student.nextDue.status === "paid";
+                    const palette = isPaid
+                      ? { bg: "var(--paid-light)", fg: "var(--paid-green)" }
+                      : rel.urgency === "overdue"
+                      ? { bg: "var(--overdue-light)", fg: "var(--overdue-coral)" }
+                      : rel.urgency === "soon"
+                      ? { bg: "var(--pending-light, #FEF3C7)", fg: "var(--pending-amber, #B45309)" }
+                      : { bg: "var(--surface-2)", fg: "var(--text-secondary)" };
+                    const dateStr = formatDate(student.nextDue.dueDate, { day: "numeric", month: "short" });
+                    const label = isPaid
+                      ? `Al día · próximo ${dateStr}`
+                      : rel.urgency === "overdue"
+                      ? `Venció ${dateStr}`
+                      : `Vence ${dateStr}`;
+                    return (
+                      <div style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        marginTop: 4, padding: "2px 8px", borderRadius: 99,
+                        background: palette.bg, color: palette.fg,
+                        fontSize: 11, fontWeight: 700,
+                      }}>
+                        💳 {label}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Toggle button */}
