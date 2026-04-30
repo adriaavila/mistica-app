@@ -16,6 +16,7 @@ const PRICE_FIELDS: PriceField[] = [
   { key: "price_mj", label: "Natación MJ", description: "Mensualidad Mar-Jue" },
   { key: "price_aquagym3x", label: "Aqua Gym 3x", description: "Mensualidad 3 veces/semana" },
   { key: "price_aquagym5x", label: "Aqua Gym 5x", description: "Mensualidad 5 veces/semana" },
+  { key: "price_nat5x", label: "Natación 5 días", description: "Mensualidad 5 días/semana" },
 ];
 
 export default function MasPage() {

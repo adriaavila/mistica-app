@@ -57,10 +57,19 @@ export const upsert = mutation({
 export const getStudentsForSlot = query({
   args: { timeSlotId: v.id("timeSlots"), date: v.string() },
   handler: async (ctx, args) => {
-    const students = await ctx.db
+    const primaryStudents = await ctx.db
       .query("students")
       .withIndex("by_timeSlot", (q) => q.eq("timeSlotId", args.timeSlotId))
       .collect();
+    const allStudents = await ctx.db.query("students").collect();
+    const secondaryStudents = allStudents.filter(
+      (s) => s.secondTimeSlotId === args.timeSlotId
+    );
+    const seen = new Set(primaryStudents.map((s) => s._id));
+    const students = [
+      ...primaryStudents,
+      ...secondaryStudents.filter((s) => !seen.has(s._id)),
+    ];
 
     const activeStudents = students.filter((s) => s.status === "active");
 
@@ -137,10 +146,19 @@ export const getTodaySummary = query({
       todaySlots
         .sort((a, b) => a.startTime.localeCompare(b.startTime))
         .map(async (slot) => {
-          const students = await ctx.db
+          const primaryStudents = await ctx.db
             .query("students")
             .withIndex("by_timeSlot", (q) => q.eq("timeSlotId", slot._id))
             .collect();
+          const allStudents = await ctx.db.query("students").collect();
+          const secondaryStudents = allStudents.filter(
+            (s) => s.secondTimeSlotId === slot._id
+          );
+          const seen = new Set(primaryStudents.map((s) => s._id));
+          const students = [
+            ...primaryStudents,
+            ...secondaryStudents.filter((s) => !seen.has(s._id)),
+          ];
           const activeCount = students.filter(
             (s) => s.status === "active"
           ).length;

@@ -17,25 +17,46 @@ export default function EditarAlumnoPage() {
   const timeSlots = useQuery(api.timeSlots.list, { activeOnly: true });
   const update = useMutation(api.students.update);
 
-  const [form, setForm] = useState({ name: "", phone: "", dob: "", enrollmentDate: "", modality: "lmv", timeSlotId: "", status: "active", notes: "" });
+  const [form, setForm] = useState({ name: "", phone: "", dob: "", enrollmentDate: "", modality: "lmv", timeSlotId: "", secondTimeSlotId: "", status: "active", notes: "" });
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (student && !ready) {
-      setForm({ name: student.name, phone: student.phone, dob: student.dob ?? "", enrollmentDate: student.enrollmentDate, modality: student.modality, timeSlotId: student.timeSlotId, status: student.status, notes: student.notes ?? "" });
+      setForm({ name: student.name, phone: student.phone, dob: student.dob ?? "", enrollmentDate: student.enrollmentDate, modality: student.modality, timeSlotId: student.timeSlotId, secondTimeSlotId: student.secondTimeSlotId ?? "", status: student.status, notes: student.notes ?? "" });
       setReady(true);
     }
   }, [student, ready]);
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
-  const filteredSlots = timeSlots?.filter(s => s.modalities.includes(form.modality)) ?? [];
+
+  const filteredSlots = timeSlots?.filter(s =>
+    form.modality === "nat5x"
+      ? s.modalities.includes("lmv")
+      : s.modalities.includes(form.modality)
+  ) ?? [];
+  const mjSlots = form.modality === "nat5x"
+    ? (timeSlots?.filter(s => s.modalities.includes("mj")) ?? [])
+    : [];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await update({ id: id as Id<"students">, name: form.name, phone: form.phone, dob: form.dob || undefined, enrollmentDate: form.enrollmentDate, modality: form.modality as "lmv"|"mj"|"aquagym3x"|"aquagym5x", timeSlotId: form.timeSlotId as Id<"timeSlots">, status: form.status as "active"|"suspended"|"withdrawn", notes: form.notes || undefined });
+      await update({
+        id: id as Id<"students">,
+        name: form.name,
+        phone: form.phone,
+        dob: form.dob || undefined,
+        enrollmentDate: form.enrollmentDate,
+        modality: form.modality as "lmv" | "mj" | "aquagym3x" | "aquagym5x" | "nat5x",
+        timeSlotId: form.timeSlotId as Id<"timeSlots">,
+        secondTimeSlotId: form.modality === "nat5x" && form.secondTimeSlotId
+          ? form.secondTimeSlotId as Id<"timeSlots">
+          : undefined,
+        status: form.status as "active" | "suspended" | "withdrawn",
+        notes: form.notes || undefined,
+      });
       router.push(`/alumnos/${id}`);
     } catch { setLoading(false); }
   };
@@ -50,8 +71,11 @@ export default function EditarAlumnoPage() {
         <Input label="Teléfono" value={form.phone} onChange={e => set("phone", e.target.value)} type="tel" />
         <Input label="Fecha de nacimiento" value={form.dob} onChange={e => set("dob", e.target.value)} type="date" />
         <Input label="Fecha de inscripción" value={form.enrollmentDate} onChange={e => set("enrollmentDate", e.target.value)} type="date" />
-        <Select label="Modalidad" value={form.modality} onChange={e => { set("modality", e.target.value); set("timeSlotId", student?.timeSlotId ?? ""); }} options={Object.entries(MODALITY_LABELS).map(([v,l]) => ({ value: v, label: l }))} />
-        <Select label="Horario" value={form.timeSlotId} onChange={e => set("timeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar..." }, ...filteredSlots.map(s => ({ value: s._id, label: s.label }))]} />
+        <Select label="Modalidad" value={form.modality} onChange={e => { set("modality", e.target.value); set("timeSlotId", ""); set("secondTimeSlotId", ""); }} options={Object.entries(MODALITY_LABELS).map(([v,l]) => ({ value: v, label: l }))} />
+        <Select label={form.modality === "nat5x" ? "Horario LMV (Lun/Mié/Vie)" : "Horario"} value={form.timeSlotId} onChange={e => set("timeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar..." }, ...filteredSlots.map(s => ({ value: s._id, label: s.label }))]} />
+        {form.modality === "nat5x" && (
+          <Select label="Horario MJ (Mar/Jue)" value={form.secondTimeSlotId} onChange={e => set("secondTimeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar horario MJ..." }, ...mjSlots.map(s => ({ value: s._id, label: s.label }))]} />
+        )}
         <Select label="Estado" value={form.status} onChange={e => set("status", e.target.value)} options={[{ value: "active", label: "Activo" }, { value: "suspended", label: "Suspendido" }, { value: "withdrawn", label: "Retirado" }]} />
         <Input label="Notas" value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Observaciones..." />
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 10 }}>

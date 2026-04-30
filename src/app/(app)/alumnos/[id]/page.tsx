@@ -416,9 +416,12 @@ export default function StudentDetailPage() {
                 <Avatar name={student.name} size={64} />
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{student.name}</div>
-                  <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{student.timeSlot?.label ?? "Sin horario"}</div>
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>
+                    {student.timeSlot?.label ?? "Sin horario"}
+                    {student.secondTimeSlot && ` · ${student.secondTimeSlot.label}`}
+                  </div>
                   <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                    <Badge variant={student.modality as "lmv"|"mj"|"aquagym3x"|"aquagym5x"} size="sm" label={MODALITY_LABELS[student.modality]} />
+                    <Badge variant={student.modality as "lmv"|"mj"|"aquagym3x"|"aquagym5x"|"nat5x"} size="sm" label={MODALITY_LABELS[student.modality]} />
                     <Badge variant={student.status as "active"|"suspended"|"withdrawn"} size="sm" />
                   </div>
                 </div>

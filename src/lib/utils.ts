@@ -28,10 +28,11 @@ export function getRelativeDays(dateStr: string): { days: number; label: string;
 export const MODALITY_LABELS: Record<string, string> = {
   lmv: "Natación LMV", mj: "Natación MJ",
   aquagym3x: "Aqua Gym 3x", aquagym5x: "Aqua Gym 5x",
+  nat5x: "Natación 5 días",
 };
 
 export const MODALITY_SHORT: Record<string, string> = {
-  lmv: "LMV", mj: "MJ", aquagym3x: "AG3x", aquagym5x: "AG5x",
+  lmv: "LMV", mj: "MJ", aquagym3x: "AG3x", aquagym5x: "AG5x", nat5x: "N5x",
 };
 
 export const MODALITY_COLORS: Record<string, { bg: string; color: string }> = {
@@ -39,6 +40,7 @@ export const MODALITY_COLORS: Record<string, { bg: string; color: string }> = {
   mj:        { bg: "#F3E8FF", color: "#7E22CE" },
   aquagym3x: { bg: "#DCFCE7", color: "#166534" },
   aquagym5x: { bg: "#FFF7ED", color: "#9A3412" },
+  nat5x:     { bg: "#FDF2F8", color: "#9D174D" },
 };
 
 export const DAY_LABELS: Record<string, string> = {

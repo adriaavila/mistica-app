@@ -75,6 +75,9 @@ export const getWithDetails = query({
     if (!student) return null;
 
     const timeSlot = await ctx.db.get(student.timeSlotId);
+    const secondTimeSlot = student.secondTimeSlotId
+      ? await ctx.db.get(student.secondTimeSlotId)
+      : null;
     const payments = await ctx.db
       .query("payments")
       .withIndex("by_student", (q) => q.eq("studentId", args.id))
@@ -116,6 +119,7 @@ export const getWithDetails = query({
     return {
       ...student,
       timeSlot,
+      secondTimeSlot,
       payments: sortedPayments,
       paymentStatus,
       latestPayment: latestMonthly ?? null,
@@ -135,9 +139,11 @@ export const create = mutation({
       v.literal("lmv"),
       v.literal("mj"),
       v.literal("aquagym3x"),
-      v.literal("aquagym5x")
+      v.literal("aquagym5x"),
+      v.literal("nat5x")
     ),
     timeSlotId: v.id("timeSlots"),
+    secondTimeSlotId: v.optional(v.id("timeSlots")),
     status: v.union(
       v.literal("active"),
       v.literal("suspended"),
@@ -156,6 +162,7 @@ export const create = mutation({
       mj: "price_mj",
       aquagym3x: "price_aquagym3x",
       aquagym5x: "price_aquagym5x",
+      nat5x: "price_nat5x",
     };
 
     const enrollmentConfig = await ctx.db
@@ -173,7 +180,10 @@ export const create = mutation({
       ? parseFloat(enrollmentConfig.value)
       : 60;
     const defaultMonthly =
-      args.modality === "mj" ? 220 : args.modality === "aquagym5x" ? 300 : 250;
+      args.modality === "mj" ? 220
+      : args.modality === "aquagym5x" ? 300
+      : args.modality === "nat5x" ? 400
+      : 250;
     const monthlyFee = monthlyConfig
       ? parseFloat(monthlyConfig.value)
       : defaultMonthly;
@@ -223,10 +233,12 @@ export const update = mutation({
         v.literal("lmv"),
         v.literal("mj"),
         v.literal("aquagym3x"),
-        v.literal("aquagym5x")
+        v.literal("aquagym5x"),
+        v.literal("nat5x")
       )
     ),
     timeSlotId: v.optional(v.id("timeSlots")),
+    secondTimeSlotId: v.optional(v.id("timeSlots")),
     status: v.optional(
       v.union(
         v.literal("active"),

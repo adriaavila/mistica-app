@@ -1,4 +1,4 @@
-type BadgeVariant = "paid" | "pending" | "overdue" | "active" | "suspended" | "withdrawn" | "lmv" | "mj" | "aquagym3x" | "aquagym5x";
+type BadgeVariant = "paid" | "pending" | "overdue" | "active" | "suspended" | "withdrawn" | "lmv" | "mj" | "aquagym3x" | "aquagym5x" | "nat5x";
 
 const STYLES: Record<BadgeVariant, { bg: string; color: string }> = {
   paid:       { bg: "#DCFCE7", color: "#16A34A" },
@@ -11,12 +11,13 @@ const STYLES: Record<BadgeVariant, { bg: string; color: string }> = {
   mj:         { bg: "#F3E8FF", color: "#7E22CE" },
   aquagym3x:  { bg: "#DCFCE7", color: "#166534" },
   aquagym5x:  { bg: "#FFF7ED", color: "#9A3412" },
+  nat5x:      { bg: "#FDF2F8", color: "#9D174D" },
 };
 
 const LABELS: Record<BadgeVariant, string> = {
   paid: "Pagado", pending: "Pendiente", overdue: "En mora",
   active: "Activo", suspended: "Suspendido", withdrawn: "Retirado",
-  lmv: "LMV", mj: "MJ", aquagym3x: "AG 3x", aquagym5x: "AG 5x",
+  lmv: "LMV", mj: "MJ", aquagym3x: "AG 3x", aquagym5x: "AG 5x", nat5x: "N 5x",
 };
 
 export default function Badge({ variant, label, size = "md" }: {

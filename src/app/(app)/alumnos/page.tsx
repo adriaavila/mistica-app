@@ -73,7 +73,7 @@ export default function AlumnosPage() {
                   <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{student.timeSlot?.label ?? "Sin horario"}</div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                  <Badge variant={student.modality as "lmv" | "mj" | "aquagym3x" | "aquagym5x"} size="sm" />
+                  <Badge variant={student.modality as "lmv" | "mj" | "aquagym3x" | "aquagym5x" | "nat5x"} size="sm" />
                   <Badge variant={student.paymentStatus as "paid" | "pending" | "overdue"} size="sm" />
                 </div>
                 <span style={{ color: "var(--text-secondary)", fontSize: 16, marginLeft: 4 }}>›</span>

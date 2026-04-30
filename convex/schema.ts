@@ -11,9 +11,11 @@ export default defineSchema({
       v.literal("lmv"),
       v.literal("mj"),
       v.literal("aquagym3x"),
-      v.literal("aquagym5x")
+      v.literal("aquagym5x"),
+      v.literal("nat5x")
     ),
     timeSlotId: v.id("timeSlots"),
+    secondTimeSlotId: v.optional(v.id("timeSlots")),
     status: v.union(
       v.literal("active"),
       v.literal("suspended"),

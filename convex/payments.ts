@@ -264,7 +264,7 @@ for (const p of allPayments) {
 
     // Modality distribution (active students)
     const modalityCounts: Record<string, number> = {
-      lmv: 0, mj: 0, aquagym3x: 0, aquagym5x: 0,
+      lmv: 0, mj: 0, aquagym3x: 0, aquagym5x: 0, nat5x: 0,
     };
     for (const s of activeStudents) modalityCounts[s.modality] = (modalityCounts[s.modality] ?? 0) + 1;
 
@@ -358,6 +358,7 @@ export const generateMonthly = mutation({
       mj: parseFloat(configMap.price_mj ?? "0"),
       aquagym3x: parseFloat(configMap.price_aquagym3x ?? "0"),
       aquagym5x: parseFloat(configMap.price_aquagym5x ?? "0"),
+      nat5x: parseFloat(configMap.price_nat5x ?? "0"),
     };
 
     const [year, month] = args.month.split("-").map(Number);

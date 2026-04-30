@@ -46,6 +46,7 @@ export const seedDefaults = mutation({
       { key: "price_mj", value: "220" },
       { key: "price_aquagym3x", value: "250" },
       { key: "price_aquagym5x", value: "300" },
+      { key: "price_nat5x", value: "400" },
       { key: "alert_days_before_due", value: "7" },
       { key: "payment_due_day", value: "1" },
       { key: "show_overdue_alert", value: "true" },
