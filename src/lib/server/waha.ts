@@ -134,15 +134,19 @@ export async function getWahaStatus(): Promise<WahaStatus> {
 
 export async function startWahaSession(sessionName = "default"): Promise<any> {
   try {
+    const startExistingSession = () => wahaRequest(`/api/sessions/${sessionName}/start`, {
+      method: "POST",
+    });
+
     const status = await getWahaStatus();
     const exists = status.sessions.some((s) => s.name === sessionName);
 
     if (exists) {
       // Session exists, just start it
-      return await wahaRequest(`/api/sessions/${sessionName}/start`, {
-        method: "POST",
-      });
-    } else {
+      return await startExistingSession();
+    }
+
+    try {
       // Session doesn't exist, create it
       return await wahaRequest("/api/sessions", {
         method: "POST",
@@ -151,6 +155,13 @@ export async function startWahaSession(sessionName = "default"): Promise<any> {
         },
         body: JSON.stringify({ name: sessionName }),
       });
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Unknown error";
+      const normalizedMessage = errorMsg.toLowerCase();
+      if (normalizedMessage.includes("session") && normalizedMessage.includes("already exists")) {
+        return await startExistingSession();
+      }
+      throw err;
     }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Unknown error";

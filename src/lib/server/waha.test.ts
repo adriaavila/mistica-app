@@ -61,11 +61,17 @@ describe("WAHA API endpoints requests", () => {
   });
 
   it("startWahaSession should call POST sessions", async () => {
-    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ name: "default", status: "STARTING" }),
-    } as any);
+    const fetchSpy = vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => [],
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ name: "default", status: "STARTING" }),
+      } as any);
 
     await startWahaSession("default");
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -73,6 +79,55 @@ describe("WAHA API endpoints requests", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ name: "default" }),
+      })
+    );
+  });
+
+  it("startWahaSession should start an existing session", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => [{ name: "default", status: "STOPPED" }],
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ name: "default", status: "STARTING" }),
+      } as any);
+
+    await startWahaSession("default");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://waha-test.io/api/sessions/default/start",
+      expect.objectContaining({
+        method: "POST",
+      })
+    );
+  });
+
+  it("startWahaSession should start the session when create reports it already exists", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => [],
+      } as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ message: "Session 'default' already exists. Use PUT to update it." }),
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ name: "default", status: "STARTING" }),
+      } as any);
+
+    await startWahaSession("default");
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "http://waha-test.io/api/sessions/default/start",
+      expect.objectContaining({
+        method: "POST",
       })
     );
   });
