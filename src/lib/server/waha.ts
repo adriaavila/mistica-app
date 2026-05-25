@@ -3,6 +3,11 @@ import "server-only";
 const WAHA_BASE_URL = process.env.WAHA_BASE_URL;
 const WAHA_API_KEY = process.env.WAHA_API_KEY;
 
+function isSessionAlreadyStartedMessage(message: string): boolean {
+  const normalizedMessage = message.toLowerCase();
+  return normalizedMessage.includes("session") && normalizedMessage.includes("already started");
+}
+
 /**
  * Normalizes a phone number for Bolivia.
  * Rules:
@@ -165,6 +170,9 @@ export async function startWahaSession(sessionName = "default"): Promise<any> {
     }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Unknown error";
+    if (isSessionAlreadyStartedMessage(errorMsg)) {
+      return { name: sessionName, status: "STARTED" };
+    }
     throw new Error(`Failed to start WAHA session "${sessionName}": ${errorMsg}`);
   }
 }
@@ -180,7 +188,13 @@ export async function getWahaQr(sessionName = "default"): Promise<string | null>
         Accept: "application/json",
       },
     });
-    return data?.qr || null;
+    if (data?.qr) {
+      return data.qr;
+    }
+    if (data?.mimetype && data?.data) {
+      return `data:${data.mimetype};base64,${data.data}`;
+    }
+    return null;
   } catch (err: any) {
     // Return null if session is already working (API throws error like "Session is connected")
     console.log(`Failed to retrieve QR code for "${sessionName}" (possibly already connected): ${err.message}`);

@@ -132,6 +132,31 @@ describe("WAHA API endpoints requests", () => {
     );
   });
 
+  it("startWahaSession should succeed when the existing session is already started", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => [{ name: "default", status: "STOPPED" }],
+      } as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ message: "Session 'default' is already started." }),
+      } as any);
+
+    await expect(startWahaSession("default")).resolves.toEqual({
+      name: "default",
+      status: "STARTED",
+    });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "http://waha-test.io/api/sessions/default/start",
+      expect.objectContaining({
+        method: "POST",
+      })
+    );
+  });
+
   it("getWahaQr should fetch base64 QR", async () => {
     const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
@@ -147,6 +172,17 @@ describe("WAHA API endpoints requests", () => {
         headers: expect.any(Headers),
       })
     );
+  });
+
+  it("getWahaQr should format WAHA image data responses as a data URL", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ mimetype: "image/png", data: "abc123" }),
+    } as any);
+
+    const qr = await getWahaQr("default");
+    expect(qr).toBe("data:image/png;base64,abc123");
   });
 
   it("sendWahaText should call sendText endpoint with normalized phone", async () => {

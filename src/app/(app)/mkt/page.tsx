@@ -83,7 +83,11 @@ export default function MarketingPage() {
         } else if (misticaSession.status === "WORKING") {
           setWahaStatus("connected");
           setQrCode(null);
-        } else if (misticaSession.status === "SCAN_QR" || misticaSession.status === "STARTING") {
+        } else if (
+          misticaSession.status === "SCAN_QR" ||
+          misticaSession.status === "SCAN_QR_CODE" ||
+          misticaSession.status === "STARTING"
+        ) {
           setWahaStatus("qr_required");
           // Proactively fetch QR
           fetchQrCode();
