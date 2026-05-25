@@ -24,6 +24,9 @@ export default defineSchema({
     notes: v.optional(v.string()),
     createdAt: v.number(),
     originalEnrollmentDate: v.optional(v.string()),
+    payerPhone: v.optional(v.string()),
+    guardianPhone: v.optional(v.string()),
+    guardianName: v.optional(v.string()),
   })
     .index("by_status", ["status"])
     .index("by_modality", ["modality"])
@@ -93,4 +96,50 @@ export default defineSchema({
     key: v.string(),
     value: v.string(),
   }).index("by_key", ["key"]),
+
+  marketingCampaigns: defineTable({
+    name: v.string(),
+    type: v.string(), // e.g. mothers_day
+    segment: v.union(v.literal("natacion"), v.literal("aquagym"), v.literal("all")),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("ready"),
+      v.literal("sending"),
+      v.literal("paused"),
+      v.literal("done"),
+      v.literal("error")
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    startedAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+    createdBy: v.optional(v.string()),
+  })
+    .index("by_status", ["status"])
+    .index("by_type", ["type"]),
+
+  marketingMessages: defineTable({
+    campaignId: v.id("marketingCampaigns"),
+    studentId: v.optional(v.id("students")),
+    recipientName: v.optional(v.string()),
+    studentName: v.optional(v.string()),
+    phone: v.string(),
+    normalizedPhone: v.string(),
+    program: v.union(v.literal("natacion"), v.literal("aquagym"), v.literal("unknown")),
+    message: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("sending"),
+      v.literal("sent"),
+      v.literal("error"),
+      v.literal("skipped")
+    ),
+    error: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_campaign", ["campaignId"])
+    .index("by_campaign_phone", ["campaignId", "normalizedPhone"])
+    .index("by_status", ["status"]),
 });

@@ -150,6 +150,9 @@ export const create = mutation({
       v.literal("withdrawn")
     ),
     notes: v.optional(v.string()),
+    payerPhone: v.optional(v.string()),
+    guardianPhone: v.optional(v.string()),
+    guardianName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const studentId = await ctx.db.insert("students", {
@@ -201,12 +204,12 @@ export const create = mutation({
     // First monthly payment due next month, same day as enrollment
     const enrollDate = new Date(args.enrollmentDate + "T00:00:00");
     const enrollDay = enrollDate.getDate();
-    const dueDate = new Date(enrollDate);
-    dueDate.setMonth(dueDate.getMonth() + 1);
-    const lastDayOfNextMonth = new Date(dueDate.getFullYear(), dueDate.getMonth() + 1, 0).getDate();
-    dueDate.setDate(Math.min(enrollDay, lastDayOfNextMonth));
-    const dueDateStr = dueDate.toISOString().split("T")[0];
-    const monthStr = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, "0")}`;
+    // Safe: anchor to 1st of next month first to avoid day-overflow (e.g. Mar 31 → Apr 31 → May 1)
+    const nextMonthDate = new Date(enrollDate.getFullYear(), enrollDate.getMonth() + 1, 1);
+    const lastDayOfNextMonth = new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth() + 1, 0).getDate();
+    nextMonthDate.setDate(Math.min(enrollDay, lastDayOfNextMonth));
+    const dueDateStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, "0")}-${String(nextMonthDate.getDate()).padStart(2, "0")}`;
+    const monthStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, "0")}`;
 
     await ctx.db.insert("payments", {
       studentId,
@@ -247,6 +250,9 @@ export const update = mutation({
       )
     ),
     notes: v.optional(v.string()),
+    payerPhone: v.optional(v.string()),
+    guardianPhone: v.optional(v.string()),
+    guardianName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;

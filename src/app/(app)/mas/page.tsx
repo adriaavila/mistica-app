@@ -67,6 +67,7 @@ export default function MasPage() {
             {[
               { href: "/ventas", icon: "🛒", label: "Ventas de productos", desc: "Vende artículos y consulta historial" },
               { href: "/mas/horarios", icon: "⏰", label: "Horarios", desc: "Gestiona los horarios de clases" },
+              { href: "/mkt", icon: "📣", label: "Campañas WhatsApp", desc: "Envía mensajes y saludos a tus alumnos" },
             ].map((item, idx) => (
               <div key={item.href}>
                 {idx > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 16px" }} />}
