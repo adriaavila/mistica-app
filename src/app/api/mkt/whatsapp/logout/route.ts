@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
-import { startWahaSession, getWahaStatus } from "@/lib/server/waha";
+import { getWahaStatus, logoutWahaSession } from "@/lib/server/waha";
 import { getSessionNameFromJsonRequest, wahaErrorResponse } from "../_utils";
 
 export async function POST(request: Request) {
@@ -19,15 +19,15 @@ export async function POST(request: Request) {
   if (dryRun) {
     return NextResponse.json({
       online: true,
-      sessions: [{ name: sessionName, status: "WORKING" }],
+      sessions: [{ name: sessionName, status: "STOPPED" }],
       sessionName,
-      status: "WORKING",
+      status: "STOPPED",
       dryRun: true,
     });
   }
 
   try {
-    await startWahaSession(sessionName);
+    await logoutWahaSession(sessionName);
     const status = await getWahaStatus(sessionName);
     return NextResponse.json({
       ...status,

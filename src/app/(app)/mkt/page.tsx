@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import PageHeader from "@/components/ui/PageHeader";
 import Card from "@/components/ui/Card";
@@ -26,13 +26,62 @@ const AUTH_HEADERS = {
   "Content-Type": "application/json",
 };
 
+type WahaUiStatus = "loading" | "disconnected" | "qr_required" | "connected" | "error";
+const WAHA_SESSION_NAME = "default";
+
+type WahaDebugState = {
+  configured: boolean;
+  baseUrlHost: string | null;
+  canReachWaha: boolean;
+  sessionName: string;
+  status: string | null;
+  lastError: string | null;
+};
+
+type BatchSummary = {
+  attempted: number;
+  sent: number;
+  failed: number;
+  remaining: number;
+};
+
+type BadgeVariant = React.ComponentProps<typeof Badge>["variant"];
+
+function statusToUiStatus(status?: string | null): WahaUiStatus {
+  if (status === "WORKING") return "connected";
+  if (status === "SCAN_QR" || status === "SCAN_QR_CODE" || status === "STARTING" || status === "STARTED") {
+    return "qr_required";
+  }
+  if (!status || status === "NOT_CREATED" || status === "STOPPED" || status === "FAILED") {
+    return "disconnected";
+  }
+  return "disconnected";
+}
+
+async function readApiJson<T extends Record<string, unknown>>(res: Response): Promise<T> {
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const error = data && typeof data === "object" && "error" in data ? String(data.error) : `HTTP ${res.status}`;
+    throw new Error(error);
+  }
+  return data as T;
+}
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : "Error desconocido";
+}
+
 export default function MarketingPage() {
   // 1. WhatsApp status states
-  const [wahaStatus, setWahaStatus] = useState<string>("loading"); // loading, disconnected, qr_required, connected, error
+  const [wahaStatus, setWahaStatus] = useState<WahaUiStatus>("loading");
+  const [wahaRawStatus, setWahaRawStatus] = useState<string | null>(null);
+  const [wahaDebug, setWahaDebug] = useState<WahaDebugState | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [qrMessage, setQrMessage] = useState<string | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [loadingStart, setLoadingStart] = useState(false);
   const [loadingQr, setLoadingQr] = useState(false);
+  const [loadingLogout, setLoadingLogout] = useState(false);
 
   // 2. Campaign Builder states
   const [segment, setSegment] = useState<"natacion" | "aquagym" | "all">("natacion");
@@ -43,7 +92,7 @@ export default function MarketingPage() {
   const latestCampaign = campaigns?.[0];
   const messages = useQuery(
     api.marketing.listCampaignMessages,
-    latestCampaign ? { campaignId: latestCampaign._id } : "skip" as any
+    latestCampaign ? { campaignId: latestCampaign._id } : "skip"
   );
 
   // 4. Action states
@@ -54,7 +103,7 @@ export default function MarketingPage() {
   const [testRecipientName, setTestRecipientName] = useState("Mabel Hiza");
   const [sendingTest, setSendingTest] = useState(false);
   const [sendingBatch, setSendingBatch] = useState(false);
-  const [batchSummary, setBatchSummary] = useState<any | null>(null);
+  const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isDryRun, setIsDryRun] = useState<boolean>(false);
   const [pausingCampaign, setPausingCampaign] = useState(false);
@@ -71,35 +120,56 @@ export default function MarketingPage() {
       const res = await fetch("/api/mkt/whatsapp/status", {
         headers: AUTH_HEADERS,
       });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data = await readApiJson<{
+        online?: boolean;
+        dryRun?: boolean;
+        status?: string | null;
+        lastError?: string | null;
+      }>(res);
       
       setIsDryRun(!!data.dryRun);
+      setWahaRawStatus(data.status ?? null);
+      setQrMessage(data.lastError ?? null);
 
       if (data.online) {
-        const misticaSession = data.sessions?.find((s: any) => s.name === "default");
-        if (!misticaSession) {
-          setWahaStatus("disconnected");
-        } else if (misticaSession.status === "WORKING") {
-          setWahaStatus("connected");
+        const nextStatus = statusToUiStatus(data.status);
+        setWahaStatus(nextStatus);
+        if (nextStatus === "connected") {
           setQrCode(null);
-        } else if (
-          misticaSession.status === "SCAN_QR" ||
-          misticaSession.status === "SCAN_QR_CODE" ||
-          misticaSession.status === "STARTING"
-        ) {
-          setWahaStatus("qr_required");
-          // Proactively fetch QR
+          setQrMessage("WhatsApp ya está conectado para esta sesión.");
+        } else if (nextStatus === "qr_required") {
           fetchQrCode();
-        } else {
-          setWahaStatus("disconnected");
         }
       } else {
         setWahaStatus("error");
+        setActionError(data.lastError || "No se pudo conectar con WAHA.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setWahaStatus("error");
+      setActionError(getErrorMessage(err));
+    } finally {
+      setLoadingStatus(false);
+    }
+  };
+
+  const fetchWahaDebug = async () => {
+    setLoadingStatus(true);
+    setActionError(null);
+    try {
+      const res = await fetch("/api/mkt/whatsapp/debug", {
+        headers: AUTH_HEADERS,
+      });
+      const data = await readApiJson<WahaDebugState>(res);
+      setWahaDebug(data);
+      setWahaRawStatus(data.status ?? null);
+      setWahaStatus(data.canReachWaha ? statusToUiStatus(data.status) : "error");
+      if (data.lastError) {
+        setActionError(data.lastError);
+      }
+    } catch (err: unknown) {
+      setWahaStatus("error");
+      setActionError(getErrorMessage(err));
     } finally {
       setLoadingStatus(false);
     }
@@ -108,17 +178,18 @@ export default function MarketingPage() {
   const startSession = async () => {
     setLoadingStart(true);
     setActionError(null);
+    setQrMessage(null);
     try {
       const res = await fetch("/api/mkt/whatsapp/start", {
         method: "POST",
         headers: AUTH_HEADERS,
+        body: JSON.stringify({ sessionName: WAHA_SESSION_NAME }),
       });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data = await readApiJson<{ dryRun?: boolean }>(res);
       setIsDryRun(!!data.dryRun);
       await fetchWahaStatus();
-    } catch (err: any) {
-      setActionError(`Error al iniciar sesión: ${err.message}`);
+    } catch (err: unknown) {
+      setActionError(getErrorMessage(err));
     } finally {
       setLoadingStart(false);
     }
@@ -126,22 +197,56 @@ export default function MarketingPage() {
 
   const fetchQrCode = async () => {
     setLoadingQr(true);
+    setActionError(null);
+    setQrMessage(null);
     try {
       const res = await fetch("/api/mkt/whatsapp/qr", {
         headers: AUTH_HEADERS,
       });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data = await readApiJson<{
+        qr?: string | null;
+        status?: string | null;
+        message?: string | null;
+      }>(res);
+      setWahaRawStatus(data.status ?? wahaRawStatus);
       if (data.qr) {
         setQrCode(data.qr);
         setWahaStatus("qr_required");
       } else {
         setQrCode(null);
+        setQrMessage(data.message || "QR no disponible todavía. Inicia la sesión o intenta refrescar en unos segundos.");
+        setWahaStatus(statusToUiStatus(data.status));
       }
-    } catch (err) {
-      console.error("Failed to fetch QR:", err);
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      setQrCode(null);
+      setQrMessage(message);
+      setActionError(message);
     } finally {
       setLoadingQr(false);
+    }
+  };
+
+  const logoutSession = async () => {
+    setLoadingLogout(true);
+    setActionError(null);
+    setQrCode(null);
+    setQrMessage(null);
+    try {
+      const res = await fetch("/api/mkt/whatsapp/logout", {
+        method: "POST",
+        headers: AUTH_HEADERS,
+        body: JSON.stringify({ sessionName: WAHA_SESSION_NAME }),
+      });
+      const data = await readApiJson<{ dryRun?: boolean; status?: string | null }>(res);
+      setIsDryRun(!!data.dryRun);
+      setWahaRawStatus(data.status ?? null);
+      setWahaStatus(statusToUiStatus(data.status));
+      await fetchWahaDebug();
+    } catch (err: unknown) {
+      setActionError(getErrorMessage(err));
+    } finally {
+      setLoadingLogout(false);
     }
   };
 
@@ -158,8 +263,8 @@ export default function MarketingPage() {
       const data = await res.json();
       setBatchSummary(null);
       alert(`Campaña creada. Se prepararon ${data.preparedCount} mensajes en cola.`);
-    } catch (err: any) {
-      setActionError(`Error al crear campaña: ${err.message}`);
+    } catch (err: unknown) {
+      setActionError(`Error al crear campaña: ${getErrorMessage(err)}`);
     } finally {
       setCreatingCampaign(false);
     }
@@ -181,6 +286,7 @@ export default function MarketingPage() {
           program: segment === "all" ? "natacion" : segment,
           studentName: testStudentName,
           recipientName: testRecipientName,
+          sessionName: WAHA_SESSION_NAME,
         }),
       });
       if (!res.ok) {
@@ -188,8 +294,8 @@ export default function MarketingPage() {
         throw new Error(errData.error || "Error desconocido");
       }
       alert("Mensaje de prueba enviado con éxito.");
-    } catch (err: any) {
-      setActionError(`Error al enviar prueba: ${err.message}`);
+    } catch (err: unknown) {
+      setActionError(`Error al enviar prueba: ${getErrorMessage(err)}`);
     } finally {
       setSendingTest(false);
     }
@@ -211,6 +317,7 @@ export default function MarketingPage() {
         body: JSON.stringify({
           campaignId: latestCampaign._id,
           limit,
+          sessionName: WAHA_SESSION_NAME,
         }),
       });
       if (!res.ok) {
@@ -221,8 +328,8 @@ export default function MarketingPage() {
       if (data.success) {
         setBatchSummary(data.summary);
       }
-    } catch (err: any) {
-      setActionError(`Error al enviar tanda: ${err.message}`);
+    } catch (err: unknown) {
+      setActionError(`Error al enviar tanda: ${getErrorMessage(err)}`);
     } finally {
       setSendingBatch(false);
     }
@@ -245,14 +352,14 @@ export default function MarketingPage() {
         const errData = await res.json();
         throw new Error(errData.error || "Error al cambiar estado");
       }
-    } catch (err: any) {
-      setActionError(`Error al pausar/reanudar campaña: ${err.message}`);
+    } catch (err: unknown) {
+      setActionError(`Error al pausar/reanudar campaña: ${getErrorMessage(err)}`);
     } finally {
       setPausingCampaign(false);
     }
   };
 
-  const getBadgeVariant = (status: string): any => {
+  const getBadgeVariant = (status: string): BadgeVariant => {
     switch (status) {
       case "draft": return "pending";
       case "ready": return "active";
@@ -334,22 +441,72 @@ export default function MarketingPage() {
             Vincular una línea telefónica a través del escaneo de código QR para habilitar el envío automatizado de mensajes WhatsApp.
           </p>
 
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 8, marginBottom: 16, fontSize: 12
+          }}>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "8px 10px" }}>
+              <div style={{ color: "var(--text-secondary)", fontWeight: 600 }}>Conexión</div>
+              <div style={{ color: "var(--text-primary)", fontWeight: 800 }}>
+                {wahaDebug ? (wahaDebug.canReachWaha ? "Alcanzable" : "Sin conexión") : (wahaStatus === "loading" ? "Revisando" : "No verificado")}
+              </div>
+            </div>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "8px 10px" }}>
+              <div style={{ color: "var(--text-secondary)", fontWeight: 600 }}>Sesión</div>
+              <div style={{ color: "var(--text-primary)", fontWeight: 800 }}>
+                {WAHA_SESSION_NAME} · {wahaRawStatus || "Sin estado"}
+              </div>
+            </div>
+          </div>
+
           {/* Action buttons */}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-            {wahaStatus !== "connected" && wahaStatus !== "qr_required" && (
-              <Button variant="brand" onClick={startSession} loading={loadingStart} size="sm">
-                Iniciar sesión de WhatsApp
-              </Button>
-            )}
-            {wahaStatus === "qr_required" && (
-              <Button variant="outline" onClick={fetchQrCode} loading={loadingQr} size="sm">
-                Actualizar Código QR
-              </Button>
-            )}
             <Button variant="outline" onClick={fetchWahaStatus} loading={loadingStatus} size="sm">
-              Refrescar Estado
+              Revisar conexión
+            </Button>
+            <Button variant="brand" onClick={startSession} loading={loadingStart} size="sm">
+              Iniciar sesión
+            </Button>
+            <Button variant="outline" onClick={fetchQrCode} loading={loadingQr} size="sm">
+              Actualizar QR
+            </Button>
+            <Button variant="outline" onClick={fetchWahaDebug} loading={loadingStatus} size="sm">
+              Diagnóstico
+            </Button>
+            <Button variant="danger" onClick={logoutSession} loading={loadingLogout} size="sm">
+              Cerrar sesión
             </Button>
           </div>
+
+          {wahaDebug?.lastError && (
+            <div style={{
+              background: "#FFF7ED", color: "#9A3412", border: "1.5px solid #FDBA74",
+              borderRadius: 12, padding: "10px 12px", fontSize: 12, fontWeight: 600,
+              marginBottom: 14, lineHeight: 1.4
+            }}>
+              {wahaDebug.lastError}
+            </div>
+          )}
+
+          {loadingQr && (
+            <div style={{
+              background: "var(--surface)", color: "var(--text-secondary)",
+              border: "1.5px solid var(--border)", borderRadius: 12,
+              padding: "12px 14px", fontSize: 13, fontWeight: 600, marginBottom: 14
+            }}>
+              Cargando código QR...
+            </div>
+          )}
+
+          {qrMessage && !qrCode && (
+            <div style={{
+              background: "#EFF6FF", color: "#1E40AF", border: "1.5px solid #93C5FD",
+              borderRadius: 12, padding: "10px 12px", fontSize: 12, fontWeight: 600,
+              marginBottom: 14, lineHeight: 1.4
+            }}>
+              {qrMessage}
+            </div>
+          )}
 
           {/* QR Render wrapper */}
           {wahaStatus === "qr_required" && qrCode && (
@@ -393,7 +550,7 @@ export default function MarketingPage() {
                 { value: "all", label: "Todos" },
               ]}
               value={segment}
-              onChange={(v) => setSegment(v as any)}
+              onChange={(v) => setSegment(v as "natacion" | "aquagym" | "all")}
               fullWidth={true}
             />
           </div>

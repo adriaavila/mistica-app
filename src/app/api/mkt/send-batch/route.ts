@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
 import { convex } from "@/lib/server/convex";
 import { api } from "@/../convex/_generated/api";
-import { sendWahaText, maskPhone } from "@/lib/server/waha";
+import { DEFAULT_WAHA_SESSION, getSafeWahaError, resolveWahaSessionName, sendWahaText, maskPhone } from "@/lib/server/waha";
 import { Id } from "@/../convex/_generated/dataModel";
 
 // In-memory safety lock to prevent concurrent batch send triggers on the same campaign
@@ -15,14 +15,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: any = {};
+  let body: { campaignId?: string; limit?: number | string; sessionName?: string } = {};
   try {
-    body = await request.json();
+    const parsed = await request.json();
+    if (parsed && typeof parsed === "object") {
+      body = parsed as { campaignId?: string; limit?: number | string; sessionName?: string };
+    }
   } catch {
     // Body is empty or malformed
   }
 
   const { campaignId, limit } = body;
+  let sessionName: string;
+  try {
+    sessionName = resolveWahaSessionName(body.sessionName || DEFAULT_WAHA_SESSION);
+  } catch (err) {
+    const safeError = getSafeWahaError(err);
+    return NextResponse.json({ error: safeError.message, code: safeError.code }, { status: 400 });
+  }
 
   if (!campaignId) {
     return NextResponse.json({ error: "campaignId is required." }, { status: 400 });
@@ -46,7 +56,7 @@ export async function POST(request: Request) {
   activeBatches.add(campaignId);
 
   // Enforce batch limits
-  let parsedLimit = typeof limit === "number" ? limit : parseInt(limit, 10);
+  let parsedLimit = typeof limit === "number" ? limit : parseInt(String(limit ?? ""), 10);
   if (isNaN(parsedLimit) || parsedLimit <= 0) {
     parsedLimit = 10;
   }
@@ -100,7 +110,7 @@ export async function POST(request: Request) {
         await sendWahaText({
           phone: msg.normalizedPhone,
           message: msg.message,
-          sessionName: "default",
+          sessionName,
         });
 
         // Mark message as sent in Convex
@@ -150,4 +160,3 @@ export async function POST(request: Request) {
     activeBatches.delete(campaignId);
   }
 }
-

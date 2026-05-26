@@ -4,7 +4,16 @@ import { vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { normalizePhone, maskPhone, getWahaStatus, startWahaSession, getWahaQr, sendWahaText } from "./waha";
+import {
+  normalizePhone,
+  maskPhone,
+  getWahaStatus,
+  startWahaSession,
+  getWahaQr,
+  sendWahaText,
+  logoutWahaSession,
+  getWahaDebugInfo,
+} from "./waha";
 
 vi.hoisted(() => {
   process.env.WAHA_BASE_URL = "http://waha-test.io";
@@ -47,6 +56,7 @@ describe("WAHA API endpoints requests", () => {
     const status = await getWahaStatus();
     expect(status.online).toBe(true);
     expect(status.sessions).toEqual([{ name: "default", status: "WORKING" }]);
+    expect(status.status).toBe("WORKING");
     expect(fetchSpy).toHaveBeenCalledWith("http://waha-test.io/api/sessions", expect.any(Object));
 
     const requestHeaders = fetchSpy.mock.calls[0][1]?.headers as Headers;
@@ -158,14 +168,20 @@ describe("WAHA API endpoints requests", () => {
   });
 
   it("getWahaQr should fetch base64 QR", async () => {
-    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ qr: "data:image/png;base64,123" }),
-    } as any);
+    const fetchSpy = vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => [{ name: "default", status: "SCAN_QR_CODE" }],
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ qr: "data:image/png;base64,123" }),
+      } as any);
 
     const qr = await getWahaQr("default");
-    expect(qr).toBe("data:image/png;base64,123");
+    expect(qr.qr).toBe("data:image/png;base64,123");
     expect(fetchSpy).toHaveBeenCalledWith(
       "http://waha-test.io/api/default/auth/qr",
       expect.objectContaining({
@@ -175,14 +191,65 @@ describe("WAHA API endpoints requests", () => {
   });
 
   it("getWahaQr should format WAHA image data responses as a data URL", async () => {
+    vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => [{ name: "default", status: "SCAN_QR_CODE" }],
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ mimetype: "image/png", data: "abc123" }),
+      } as any);
+
+    const qr = await getWahaQr("default");
+    expect(qr.qr).toBe("data:image/png;base64,abc123");
+  });
+
+  it("getWahaQr should explain when WhatsApp is already connected", async () => {
     vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ mimetype: "image/png", data: "abc123" }),
+      json: async () => [{ name: "default", status: "WORKING" }],
     } as any);
 
     const qr = await getWahaQr("default");
-    expect(qr).toBe("data:image/png;base64,abc123");
+    expect(qr.qr).toBe(null);
+    expect(qr.message).toContain("already connected");
+  });
+
+  it("logoutWahaSession should call the WAHA logout endpoint", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ status: "STOPPED" }),
+    } as any);
+
+    await logoutWahaSession("default");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://waha-test.io/api/sessions/default/logout",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("getWahaDebugInfo should return safe host diagnostics without the API key", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => [{ name: "default", status: "SCAN_QR_CODE" }],
+    } as any);
+
+    const debug = await getWahaDebugInfo("default");
+    expect(debug).toEqual({
+      configured: true,
+      baseUrlHost: "waha-test.io",
+      canReachWaha: true,
+      sessionName: "default",
+      status: "SCAN_QR_CODE",
+      lastError: null,
+    });
+    expect(JSON.stringify(debug)).not.toContain("test-api-key");
   });
 
   it("sendWahaText should call sendText endpoint with normalized phone", async () => {

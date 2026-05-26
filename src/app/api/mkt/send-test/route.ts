@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
-import { normalizePhone, sendWahaText, maskPhone } from "@/lib/server/waha";
+import { getSafeWahaError, normalizePhone, resolveWahaSessionName, sendWahaText, maskPhone } from "@/lib/server/waha";
 
 export async function POST(request: Request) {
   if (!verifyAuth(request)) {
@@ -10,6 +10,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { phone, program, studentName, recipientName } = body;
+    const sessionName = resolveWahaSessionName(body.sessionName);
 
     if (!phone) {
       return NextResponse.json({ error: "Phone number is required." }, { status: 400 });
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
     await sendWahaText({
       phone: normalized,
       message,
-      sessionName: "default",
+      sessionName,
     });
 
     return NextResponse.json({
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
       recipient: maskPhone(normalized),
     });
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: errorMsg }, { status: 500 });
+    const safeError = getSafeWahaError(err);
+    return NextResponse.json({ error: safeError.message, code: safeError.code }, { status: safeError.status });
   }
 }

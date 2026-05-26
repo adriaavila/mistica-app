@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET as getStatus } from "./whatsapp/status/route";
 import { POST as startSession } from "./whatsapp/start/route";
 import { GET as getQr } from "./whatsapp/qr/route";
+import { GET as getDebug } from "./whatsapp/debug/route";
+import { POST as logoutSession } from "./whatsapp/logout/route";
 import { POST as createCampaign } from "./campaigns/mothers-day/route";
 import { GET as getCampaignDetails } from "./campaigns/[campaignId]/route";
 import { POST as sendTest } from "./send-test/route";
@@ -51,6 +53,8 @@ describe("Marketing Route Handlers - Security & Auth", () => {
     vi.spyOn(waha, "getWahaStatus").mockResolvedValue({
       online: true,
       sessions: [{ name: "default", status: "WORKING" }],
+      sessionName: "default",
+      status: "WORKING",
     });
 
     const res = await getStatus(req);
@@ -72,11 +76,14 @@ describe("Marketing Route Handlers - WhatsApp Management", () => {
     const statusSpy = vi.spyOn(waha, "getWahaStatus").mockResolvedValue({
       online: true,
       sessions: [{ name: "default", status: "STARTING" }],
+      sessionName: "default",
+      status: "STARTING",
     });
 
     const req = new Request("http://localhost/api/mkt/whatsapp/start", {
       method: "POST",
       headers: authHeaders,
+      body: JSON.stringify({ sessionName: "default" }),
     });
 
     const res = await startSession(req);
@@ -87,9 +94,14 @@ describe("Marketing Route Handlers - WhatsApp Management", () => {
   });
 
   it("GET whatsapp/qr should return QR code string", async () => {
-    const qrSpy = vi.spyOn(waha, "getWahaQr").mockResolvedValue("data:image/png;base64,123");
+    const qrSpy = vi.spyOn(waha, "getWahaQr").mockResolvedValue({
+      qr: "data:image/png;base64,123",
+      sessionName: "default",
+      status: "SCAN_QR_CODE",
+      message: null,
+    });
 
-    const req = new Request("http://localhost/api/mkt/whatsapp/qr", {
+    const req = new Request("http://localhost/api/mkt/whatsapp/qr?sessionName=default", {
       method: "GET",
       headers: authHeaders,
     });
@@ -99,6 +111,51 @@ describe("Marketing Route Handlers - WhatsApp Management", () => {
     const body = await res.json();
     expect(body.qr).toBe("data:image/png;base64,123");
     expect(qrSpy).toHaveBeenCalledWith("default");
+  });
+
+  it("GET whatsapp/debug should return safe diagnostics", async () => {
+    const debugSpy = vi.spyOn(waha, "getWahaDebugInfo").mockResolvedValue({
+      configured: true,
+      baseUrlHost: "waha.example.com",
+      canReachWaha: true,
+      sessionName: "default",
+      status: "WORKING",
+      lastError: null,
+    });
+
+    const req = new Request("http://localhost/api/mkt/whatsapp/debug", {
+      method: "GET",
+      headers: authHeaders,
+    });
+
+    const res = await getDebug(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.baseUrlHost).toBe("waha.example.com");
+    expect(JSON.stringify(body)).not.toContain("test-api-key");
+    expect(debugSpy).toHaveBeenCalledWith("default");
+  });
+
+  it("POST whatsapp/logout should logout and return status", async () => {
+    const logoutSpy = vi.spyOn(waha, "logoutWahaSession").mockResolvedValue({ status: "STOPPED" });
+    vi.spyOn(waha, "getWahaStatus").mockResolvedValue({
+      online: true,
+      sessions: [{ name: "default", status: "STOPPED" }],
+      sessionName: "default",
+      status: "STOPPED",
+    });
+
+    const req = new Request("http://localhost/api/mkt/whatsapp/logout", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ sessionName: "default" }),
+    });
+
+    const res = await logoutSession(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("STOPPED");
+    expect(logoutSpy).toHaveBeenCalledWith("default");
   });
 });
 
@@ -169,6 +226,7 @@ describe("Marketing Route Handlers - Messaging Operations", () => {
         phone: "71234567",
         program: "natacion",
         studentName: "Carlitos",
+        sessionName: "default",
       }),
     });
 
@@ -202,6 +260,7 @@ describe("Marketing Route Handlers - Messaging Operations", () => {
       body: JSON.stringify({
         campaignId: "campaign-123",
         limit: 5,
+        sessionName: "default",
       }),
     });
 
@@ -308,6 +367,7 @@ describe("Marketing Route Handlers - Messaging Operations", () => {
     expect(body.online).toBe(true);
     expect(body.dryRun).toBe(true);
     expect(body.sessions[0].status).toBe("WORKING");
+    expect(body.sessionName).toBe("default");
 
     process.env.MKT_DRY_RUN = originalDryRun;
   });
@@ -317,7 +377,7 @@ describe("Marketing Route Handlers - Messaging Operations", () => {
     process.env.MKT_DRY_RUN = "true";
 
     const fetchSpy = vi.spyOn(global, "fetch");
-    const result = await waha.sendWahaText({ phone: "71234567", message: "Hola dry run" });
+    const result = await waha.sendWahaText({ phone: "71234567", message: "Hola dry run", sessionName: "default" }) as { dryRun?: boolean };
     expect(result.dryRun).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
 

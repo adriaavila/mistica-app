@@ -69,7 +69,7 @@ To run the WhatsApp automation gateway:
 ### 📲 QR Code Login Flow
 
 1. Navigate to the `/mkt` dashboard (protected under Password Gate authorization).
-2. If disconnected, click **Iniciar sesión de WhatsApp**. This triggers a session named `default` (standard session supported by WAHA Core).
+2. If disconnected, open `/mkt` and click **Iniciar sesión**. WAHA Core uses the single supported session named `default`.
 3. If pairing is required, click **Actualizar Código QR** to render the WhatsApp Web pairing QR Code.
 4. Open WhatsApp on your mobile phone &gt; **Linked Devices** &gt; **Link a Device** and scan the rendered code.
 5. Once connected, status transitions to `Conectado (WORKING)` and you are ready to prepare campaigns.
