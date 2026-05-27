@@ -89,7 +89,7 @@ export default function MarketingPage() {
 
   // 3. Campaign details (Convex real-time queries)
   const campaigns = useQuery(api.marketing.listMarketingCampaigns);
-  const latestCampaign = campaigns?.[0];
+  const latestCampaign = campaigns?.find((campaign) => campaign.status !== "done") ?? campaigns?.[0];
   const messages = useQuery(
     api.marketing.listCampaignMessages,
     latestCampaign ? { campaignId: latestCampaign._id } : "skip"
