@@ -18,11 +18,12 @@ export default function NuevoAlumnoPage() {
   const [form, setForm] = useState({
     name: "", phone: "", dob: "", enrollmentDate: todayStr(),
     modality: "lmv", timeSlotId: "", secondTimeSlotId: "", status: "active", notes: "",
+    chargeEnrollment: true,
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
   const filteredSlots = timeSlots?.filter(s =>
     form.modality === "nat5x"
@@ -64,6 +65,7 @@ export default function NuevoAlumnoPage() {
           : undefined,
         status: form.status as "active" | "suspended" | "withdrawn",
         notes: form.notes || undefined,
+        chargeEnrollment: form.chargeEnrollment,
       });
       router.push("/alumnos");
     } catch {
@@ -86,6 +88,16 @@ export default function NuevoAlumnoPage() {
         )}
         <Select label="Estado" value={form.status} onChange={e => set("status", e.target.value)} options={[{ value: "active", label: "Activo" }, { value: "suspended", label: "Suspendido" }, { value: "withdrawn", label: "Retirado" }]} />
         <Input label="Notas (opcional)" value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Observaciones..." />
+
+        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, fontWeight: 600, color: "var(--text-primary)", cursor: "pointer", marginTop: 4 }}>
+          <input
+            type="checkbox"
+            checked={form.chargeEnrollment}
+            onChange={e => set("chargeEnrollment", e.target.checked)}
+            style={{ width: 18, height: 18, cursor: "pointer", accentColor: "var(--pool-blue)" }}
+          />
+          Cobrar inscripción (60 Bs)
+        </label>
 
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 10 }}>
           <Button type="submit" variant="brand" size="lg" fullWidth loading={loading}>Inscribir alumno</Button>

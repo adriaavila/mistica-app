@@ -153,10 +153,12 @@ export const create = mutation({
     payerPhone: v.optional(v.string()),
     guardianPhone: v.optional(v.string()),
     guardianName: v.optional(v.string()),
+    chargeEnrollment: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    const { chargeEnrollment, ...studentFields } = args;
     const studentId = await ctx.db.insert("students", {
-      ...args,
+      ...studentFields,
       createdAt: Date.now(),
     });
 
@@ -191,15 +193,17 @@ export const create = mutation({
       ? parseFloat(monthlyConfig.value)
       : defaultMonthly;
 
-    // Enrollment payment — paid on registration
-    await ctx.db.insert("payments", {
-      studentId,
-      type: "enrollment",
-      amount: enrollmentFee,
-      dueDate: args.enrollmentDate,
-      status: "paid",
-      paidAt: args.enrollmentDate,
-    });
+    // Enrollment payment — paid on registration (if requested)
+    if (chargeEnrollment !== false) {
+      await ctx.db.insert("payments", {
+        studentId,
+        type: "enrollment",
+        amount: enrollmentFee,
+        dueDate: args.enrollmentDate,
+        status: "paid",
+        paidAt: args.enrollmentDate,
+      });
+    }
 
     // First monthly payment due next month, same day as enrollment
     const enrollDate = new Date(args.enrollmentDate + "T00:00:00");

@@ -399,6 +399,7 @@ function CobrosContent() {
   const config = useQuery(api.appConfig.getAll);
   const currency = config?.currency ?? "Bs";
   const markPending = useMutation(api.payments.markPending);
+  const removePayment = useMutation(api.payments.remove);
 
   const months6 = getLast6Months();
 
@@ -572,14 +573,28 @@ function CobrosContent() {
                     {formatCurrency(payment.amount, currency)}
                   </span>
                   {!isPaid ? (
-                    <button
-                      onClick={() => openPaySheet(payment)}
-                      style={{
-                        background: "var(--paid-green)", color: "#fff", border: "none",
-                        borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700,
-                        cursor: "pointer", fontFamily: "var(--font)",
-                      }}
-                    >✓ Pago</button>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        onClick={async () => {
+                          if (confirm(`¿Eximir/borrar este cobro de ${formatCurrency(payment.amount, currency)} para ${payment.student?.name ?? "este alumno"}?`)) {
+                            await removePayment({ id: payment._id as Id<"payments"> });
+                          }
+                        }}
+                        style={{
+                          background: "var(--overdue-light)", color: "var(--overdue-coral)", border: "none",
+                          borderRadius: 8, padding: "6px 8px", fontSize: 12, fontWeight: 700,
+                          cursor: "pointer", fontFamily: "var(--font)",
+                        }}
+                      >Eximir</button>
+                      <button
+                        onClick={() => openPaySheet(payment)}
+                        style={{
+                          background: "var(--paid-green)", color: "#fff", border: "none",
+                          borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700,
+                          cursor: "pointer", fontFamily: "var(--font)",
+                        }}
+                      >✓ Pago</button>
+                    </div>
                   ) : (
                     <button
                       onClick={() => markPending({ id: payment._id as Id<"payments"> })}

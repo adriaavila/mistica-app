@@ -344,6 +344,7 @@ export default function StudentDetailPage() {
   const addPartialPayment = useMutation(api.payments.addPartialPayment);
   const markPending = useMutation(api.payments.markPending);
   const removeStudent = useMutation(api.students.remove);
+  const removePayment = useMutation(api.payments.remove);
   const config = useQuery(api.appConfig.getAll);
 
   const [tab, setTab] = useState("info");
@@ -574,14 +575,28 @@ export default function StudentDetailPage() {
                             {formatCurrency(payment.amount, currency)}
                           </span>
                           {!isPaid ? (
-                            <button
-                              onClick={() => { setPaySheetPaymentId(payment._id); setPaySheetAmount(payment.amount); }}
-                              style={{
-                                background: "var(--paid-green)", color: "#fff", border: "none",
-                                borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600,
-                                cursor: "pointer", fontFamily: "var(--font)",
-                              }}
-                            >✓ Pago</button>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <button
+                                onClick={async () => {
+                                  if (confirm(`¿Eximir/borrar este cobro de ${formatCurrency(payment.amount, currency)} para ${student.name}?`)) {
+                                    await removePayment({ id: payment._id });
+                                  }
+                                }}
+                                style={{
+                                  background: "var(--overdue-light)", color: "var(--overdue-coral)", border: "none",
+                                  borderRadius: 8, padding: "6px 8px", fontSize: 12, fontWeight: 600,
+                                  cursor: "pointer", fontFamily: "var(--font)",
+                                }}
+                              >Eximir</button>
+                              <button
+                                onClick={() => { setPaySheetPaymentId(payment._id); setPaySheetAmount(payment.amount); }}
+                                style={{
+                                  background: "var(--paid-green)", color: "#fff", border: "none",
+                                  borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600,
+                                  cursor: "pointer", fontFamily: "var(--font)",
+                                }}
+                              >✓ Pago</button>
+                            </div>
                           ) : (
                             <button
                               onClick={() => markPending({ id: payment._id })}
