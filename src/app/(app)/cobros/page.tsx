@@ -58,6 +58,7 @@ function PaySheet({
   const [method, setMethod] = useState<"qr" | "cash">("cash");
   const [isPartial, setIsPartial] = useState(false);
   const [partialAmt, setPartialAmt] = useState(String(remaining));
+  const [paidAt, setPaidAt] = useState(new Date().toISOString().split("T")[0]);
   const [loading, setLoading] = useState(false);
 
   const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 };
@@ -68,10 +69,10 @@ function PaySheet({
     if (isPartial) {
       const amt = parseFloat(partialAmt);
       if (!amt || amt <= 0) { setLoading(false); return; }
-      await addPartial({ id: target.id, amount: amt, paymentMethod: method });
+      await addPartial({ id: target.id, amount: amt, paymentMethod: method, paidAt });
       onClose();
     } else {
-      await markPaidMut({ id: target.id, paymentMethod: method });
+      await markPaidMut({ id: target.id, paymentMethod: method, paidAt });
       onDone(method);
     }
     setLoading(false);
@@ -111,6 +112,9 @@ function PaySheet({
             >{m === "cash" ? "💵 Efectivo" : "📱 QR"}</button>
           ))}
         </div>
+
+        <label style={labelStyle}>Fecha de cobro</label>
+        <input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} style={inputStyle} />
 
         <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, cursor: "pointer" }}>
           <input type="checkbox" checked={isPartial} onChange={(e) => setIsPartial(e.target.checked)} style={{ width: 16, height: 16 }} />
@@ -560,7 +564,7 @@ function CobrosContent() {
                     fontSize: 12, marginTop: 3, fontWeight: 600,
                     color: isPaid ? "var(--paid-green)" : isOverdue ? "var(--overdue-coral)" : rel.urgency === "soon" ? "var(--pending-amber)" : "var(--text-secondary)",
                   }}>
-                    {isPaid ? `Pagado ${payment.paidAt ? formatDate(payment.paidAt) : ""}${methodLabel}` : isPartial ? `Abonado ${formatCurrency(alreadyPaid, currency)} · ${rel.label}` : rel.label}
+                    {isPaid ? `Cobrado ${payment.paidAt ? formatDate(payment.paidAt) : "—"}${methodLabel} · Vence ${formatDate(payment.dueDate)}` : isPartial ? `Abonado ${formatCurrency(alreadyPaid, currency)} · ${rel.label}` : rel.label}
                   </div>
                   {isPartial && (
                     <div style={{ marginTop: 5, height: 4, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden" }}>

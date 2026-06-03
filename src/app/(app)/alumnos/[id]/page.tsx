@@ -245,13 +245,14 @@ function PaySheet({
   alreadyPaid: number;
   currency: string;
   onClose: () => void;
-  onMarkPaid: (method: "qr" | "cash") => void;
-  onPartial: (amount: number, method: "qr" | "cash") => void;
+  onMarkPaid: (method: "qr" | "cash", paidAt: string) => void;
+  onPartial: (amount: number, method: "qr" | "cash", paidAt: string) => void;
 }) {
   const remaining = totalAmount - alreadyPaid;
   const [method, setMethod] = useState<"qr" | "cash">("cash");
   const [isPartial, setIsPartial] = useState(false);
   const [partialAmt, setPartialAmt] = useState(String(remaining));
+  const [paidAt, setPaidAt] = useState(new Date().toISOString().split("T")[0]);
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = async () => {
@@ -259,9 +260,9 @@ function PaySheet({
     if (isPartial) {
       const amt = parseFloat(partialAmt);
       if (!amt || amt <= 0) { setLoading(false); return; }
-      await onPartial(amt, method);
+      await onPartial(amt, method, paidAt);
     } else {
-      await onMarkPaid(method);
+      await onMarkPaid(method, paidAt);
     }
     setLoading(false);
     onClose();
@@ -301,6 +302,13 @@ function PaySheet({
           ))}
         </div>
 
+        <label style={labelStyle}>Fecha de cobro</label>
+        <input
+          type="date" value={paidAt}
+          onChange={(e) => setPaidAt(e.target.value)}
+          style={inputStyle}
+        />
+
         <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, cursor: "pointer" }}>
           <input
             type="checkbox" checked={isPartial}
@@ -336,6 +344,81 @@ function PaySheet({
   );
 }
 
+function PermitSheet({
+  studentId,
+  onClose,
+}: {
+  studentId: Id<"students">;
+  onClose: () => void;
+}) {
+  const createPermit = useMutation(api.permits.create);
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const s = new Date(startDate + "T00:00:00");
+  const e = new Date(endDate + "T00:00:00");
+  const days = Math.max(0, Math.round((e.getTime() - s.getTime()) / 86400000) + 1);
+
+  const save = async () => {
+    if (days <= 0) return;
+    setLoading(true);
+    await createPermit({ studentId, startDate, endDate, reason: reason.trim() || undefined });
+    setLoading(false);
+    onClose();
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 100,
+        background: "rgba(0,0,0,0.5)", display: "flex",
+        alignItems: "flex-end", justifyContent: "center",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          width: "100%", maxWidth: 480, background: "#fff",
+          borderRadius: "20px 20px 0 0",
+          padding: "24px 20px calc(28px + env(safe-area-inset-bottom))",
+          fontFamily: "var(--font)",
+        }}
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Nuevo permiso / licencia</div>
+
+        <label style={labelStyle}>Fecha inicio</label>
+        <input type="date" value={startDate} onChange={(ev) => setStartDate(ev.target.value)} style={inputStyle} />
+
+        <label style={labelStyle}>Fecha fin</label>
+        <input type="date" value={endDate} onChange={(ev) => setEndDate(ev.target.value)} style={inputStyle} />
+
+        <label style={labelStyle}>Motivo (opcional)</label>
+        <input type="text" value={reason} onChange={(ev) => setReason(ev.target.value)} placeholder="Viaje, lesión…" style={inputStyle} />
+
+        <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "var(--text-secondary)" }}>
+          {days > 0 ? <>Se recorrerá la fecha de vencimiento <strong>{days} día{days !== 1 ? "s" : ""}</strong>.</> : "La fecha fin debe ser igual o posterior a la de inicio."}
+        </div>
+
+        <button
+          onClick={save}
+          disabled={loading || days <= 0}
+          style={{
+            width: "100%", padding: "14px",
+            background: loading || days <= 0 ? "var(--surface-2)" : "var(--pool-blue)",
+            color: loading || days <= 0 ? "var(--text-secondary)" : "#fff",
+            border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700,
+            cursor: loading || days <= 0 ? "default" : "pointer", fontFamily: "var(--font)",
+          }}
+        >{loading ? "Guardando…" : "Guardar permiso"}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function StudentDetailPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -345,10 +428,13 @@ export default function StudentDetailPage() {
   const markPending = useMutation(api.payments.markPending);
   const removeStudent = useMutation(api.students.remove);
   const removePayment = useMutation(api.payments.remove);
+  const permits = useQuery(api.permits.listByStudent, { studentId: id as Id<"students"> });
+  const removePermit = useMutation(api.permits.remove);
   const config = useQuery(api.appConfig.getAll);
 
   const [tab, setTab] = useState("info");
   const [showAddPayment, setShowAddPayment] = useState(false);
+  const [showAddPermit, setShowAddPermit] = useState(false);
   const [paySheetPaymentId, setPaySheetPaymentId] = useState<Id<"payments"> | null>(null);
   const [paySheetAmount, setPaySheetAmount] = useState(0);
 
@@ -431,7 +517,7 @@ export default function StudentDetailPage() {
                 {[
                   { icon: "📞", label: "Teléfono", value: student.phone },
                   ...(student.dob ? [{ icon: "🎂", label: "Nacimiento", value: formatDate(student.dob) }] : []),
-                  { icon: "📅", label: "Inscripción", value: formatDate(student.enrollmentDate) },
+                  { icon: "📅", label: "Inscripción", value: formatDate(student.originalEnrollmentDate ?? student.enrollmentDate) },
                 ].map(row => (
                   <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontSize: 16, width: 24, textAlign: "center" }}>{row.icon}</span>
@@ -520,6 +606,51 @@ export default function StudentDetailPage() {
         {/* PAGOS TAB */}
         {tab === "pagos" && (
           <>
+            <Card padding="14px 16px">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: permits && permits.length > 0 ? 10 : 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>Permisos / Licencias</div>
+                <button
+                  onClick={() => setShowAddPermit(true)}
+                  style={{
+                    background: "var(--pool-light)", color: "var(--pool-blue)", border: "none",
+                    borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "var(--font)",
+                  }}
+                >+ Permiso</button>
+              </div>
+              {permits === undefined ? null : permits.length === 0 ? (
+                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Sin permisos</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {permits.map((permit) => (
+                    <div key={permit._id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                          {formatDate(permit.startDate)} – {formatDate(permit.endDate)} · {permit.days} día{permit.days !== 1 ? "s" : ""}
+                        </div>
+                        {permit.reason && (
+                          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 1 }}>{permit.reason}</div>
+                        )}
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (confirm("¿Borrar este permiso del historial? Las fechas ya recorridas no se revierten.")) {
+                            await removePermit({ id: permit._id });
+                          }
+                        }}
+                        style={{
+                          background: "var(--overdue-light)", border: "none", borderRadius: 8,
+                          padding: "6px 8px", fontSize: 13, cursor: "pointer",
+                          color: "var(--overdue-coral)", fontFamily: "var(--font)",
+                        }}
+                        title="Borrar permiso"
+                      >🗑</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
             <button
               onClick={() => setShowAddPayment(true)}
               style={{
@@ -562,7 +693,7 @@ export default function StudentDetailPage() {
                             fontSize: 12, marginTop: 2, fontWeight: 600,
                             color: isPaid ? "var(--paid-green)" : isOverdue ? "var(--overdue-coral)" : rel.urgency === "soon" ? "var(--pending-amber)" : "var(--text-secondary)",
                           }}>
-                            {isPaid ? `Pagado ${payment.paidAt ? formatDate(payment.paidAt) : ""}${methodLabel}` : isPartial ? `Abonado ${formatCurrency(alreadyPaid, currency)} · ${rel.label}` : rel.label}
+                            {isPaid ? `Cobrado ${payment.paidAt ? formatDate(payment.paidAt) : "—"}${methodLabel} · Vence ${formatDate(payment.dueDate)}` : isPartial ? `Abonado ${formatCurrency(alreadyPaid, currency)} · ${rel.label}` : rel.label}
                           </div>
                           {isPartial && (
                             <div style={{ marginTop: 6, height: 4, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden" }}>
@@ -631,6 +762,13 @@ export default function StudentDetailPage() {
         />
       )}
 
+      {showAddPermit && (
+        <PermitSheet
+          studentId={student._id}
+          onClose={() => setShowAddPermit(false)}
+        />
+      )}
+
       {paySheetPaymentId && (() => {
         const payment = student.payments.find(p => p._id === paySheetPaymentId);
         const alreadyPaid = payment?.paidAmount ?? 0;
@@ -641,8 +779,8 @@ export default function StudentDetailPage() {
             alreadyPaid={alreadyPaid}
             currency={currency}
             onClose={() => setPaySheetPaymentId(null)}
-            onMarkPaid={(method) => markPaid({ id: paySheetPaymentId, paymentMethod: method })}
-            onPartial={(amount, method) => addPartialPayment({ id: paySheetPaymentId, amount, paymentMethod: method })}
+            onMarkPaid={(method, paidAt) => markPaid({ id: paySheetPaymentId, paymentMethod: method, paidAt })}
+            onPartial={(amount, method, paidAt) => addPartialPayment({ id: paySheetPaymentId, amount, paymentMethod: method, paidAt })}
           />
         );
       })()}
