@@ -73,6 +73,15 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_due_date", ["dueDate"]),
 
+  permits: defineTable({
+    studentId: v.id("students"),
+    startDate: v.string(),
+    endDate: v.string(),
+    days: v.number(),
+    reason: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_student", ["studentId"]),
+
   products: defineTable({
     name: v.string(),
     defaultPrice: v.number(),

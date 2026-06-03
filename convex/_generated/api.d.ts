@@ -12,6 +12,7 @@ import type * as appConfig from "../appConfig.js";
 import type * as attendance from "../attendance.js";
 import type * as marketing from "../marketing.js";
 import type * as payments from "../payments.js";
+import type * as permits from "../permits.js";
 import type * as products from "../products.js";
 import type * as sales from "../sales.js";
 import type * as seed from "../seed.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   attendance: typeof attendance;
   marketing: typeof marketing;
   payments: typeof payments;
+  permits: typeof permits;
   products: typeof products;
   sales: typeof sales;
   seed: typeof seed;
