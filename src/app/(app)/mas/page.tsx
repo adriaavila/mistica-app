@@ -48,6 +48,12 @@ const EMPTY_FORM: FormState = {
   endTime: "09:00",
 };
 
+function addOneHour(time: string) {
+  const [hours = "0", minutes = "0"] = time.split(":");
+  const nextHour = (parseInt(hours, 10) + 1) % 24;
+  return `${String(nextHour).padStart(2, "0")}:${minutes.padStart(2, "0")}`;
+}
+
 function ClassForm({
   initial,
   onSave,
@@ -63,7 +69,13 @@ function ClassForm({
   saving: boolean;
   isNew: boolean;
 }) {
-  const [form, setForm] = useState<FormState>(initial);
+  const [form, setForm] = useState<FormState>({
+    ...initial,
+    endTime: addOneHour(initial.startTime),
+  });
+
+  const setStartTime = (startTime: string) =>
+    setForm(f => ({ ...f, startTime, endTime: addOneHour(startTime) }));
 
   const toggleDay = (day: string) =>
     setForm(f => ({
@@ -155,7 +167,8 @@ function ClassForm({
             <label style={labelStyle}>Hora inicio</label>
             <input
               type="time" value={form.startTime}
-              onChange={(e) => setForm(f => ({ ...f, startTime: e.target.value }))}
+              onChange={(e) => setStartTime(e.target.value)}
+              onInput={(e) => setStartTime(e.currentTarget.value)}
               style={inputStyle}
             />
           </div>
@@ -163,7 +176,7 @@ function ClassForm({
             <label style={labelStyle}>Hora fin</label>
             <input
               type="time" value={form.endTime}
-              onChange={(e) => setForm(f => ({ ...f, endTime: e.target.value }))}
+              readOnly
               style={inputStyle}
             />
           </div>
@@ -369,7 +382,11 @@ export default function MasPage() {
                     {idx > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 16px" }} />}
                     <button
                       type="button"
-                      onClick={() => slotClass && setEditing(slotClass)}
+                      onClick={() => slotClass && setEditing({
+                        ...slotClass,
+                        startTime: slot.startTime,
+                        endTime: addOneHour(slot.startTime),
+                      })}
                       disabled={!slotClass}
                       style={{
                         width: "100%",
