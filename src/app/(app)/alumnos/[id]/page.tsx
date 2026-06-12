@@ -8,7 +8,7 @@ import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import SegmentedControl from "@/components/ui/SegmentedControl";
-import { MODALITY_LABELS, formatDate, formatCurrency, getRelativeDays, formatMonth } from "@/lib/utils";
+import { MODALITY_LABELS, MODALITY_COLORS, formatDate, formatCurrency, getRelativeDays, formatMonth } from "@/lib/utils";
 import Link from "next/link";
 import { Id } from "../../../../../convex/_generated/dataModel";
 
@@ -431,6 +431,7 @@ export default function StudentDetailPage() {
   const permits = useQuery(api.permits.listByStudent, { studentId: id as Id<"students"> });
   const removePermit = useMutation(api.permits.remove);
   const config = useQuery(api.appConfig.getAll);
+  const classes = useQuery(api.classes.list, {});
 
   const [tab, setTab] = useState("info");
   const [showAddPayment, setShowAddPayment] = useState(false);
@@ -439,6 +440,12 @@ export default function StudentDetailPage() {
   const [paySheetAmount, setPaySheetAmount] = useState(0);
 
   const currency = config?.currency ?? "Bs";
+
+  const classInfo = classes?.find(c => c.key === student?.modality);
+  const modalityLabel = classInfo?.name ?? MODALITY_LABELS[student?.modality ?? ""] ?? student?.modality ?? "";
+  const modalityColors = classInfo
+    ? { bg: "var(--pool-light)", color: "var(--pool-blue)" }
+    : MODALITY_COLORS[student?.modality ?? ""] ?? { bg: "var(--pool-light)", color: "var(--pool-blue)" };
 
   if (student === undefined) {
     return <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)", fontFamily: "var(--font)" }}>Cargando...</div>;
@@ -500,7 +507,7 @@ export default function StudentDetailPage() {
           <>
             <Card padding="20px">
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
-                <Avatar name={student.name} size={64} />
+                <Avatar name={student.name} size={64} src={student.photo} />
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{student.name}</div>
                   <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>
@@ -508,7 +515,7 @@ export default function StudentDetailPage() {
                     {student.secondTimeSlot && ` · ${student.secondTimeSlot.label}`}
                   </div>
                   <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                    <Badge variant={student.modality as "lmv"|"mj"|"aquagym3x"|"aquagym5x"|"nat5x"} size="sm" label={MODALITY_LABELS[student.modality]} />
+                    <Badge size="sm" label={modalityLabel} bg={modalityColors.bg} color={modalityColors.color} />
                     <Badge variant={student.status as "active"|"suspended"|"withdrawn"} size="sm" />
                   </div>
                 </div>

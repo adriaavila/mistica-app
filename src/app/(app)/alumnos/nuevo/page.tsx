@@ -7,23 +7,43 @@ import PageHeader from "@/components/ui/PageHeader";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Button from "@/components/ui/Button";
-import { MODALITY_LABELS, todayStr } from "@/lib/utils";
+import { todayStr } from "@/lib/utils";
 import { Id } from "../../../../../convex/_generated/dataModel";
 
 export default function NuevoAlumnoPage() {
   const router = useRouter();
   const create = useMutation(api.students.create);
   const timeSlots = useQuery(api.timeSlots.list, { activeOnly: true });
+  const classes = useQuery(api.classes.list, { activeOnly: true });
 
   const [form, setForm] = useState({
-    name: "", phone: "", dob: "", enrollmentDate: todayStr(),
-    modality: "lmv", timeSlotId: "", secondTimeSlotId: "", status: "active", notes: "",
+    name: "", phone: "", photo: "", dob: "", enrollmentDate: todayStr(),
+    modality: "", timeSlotId: "", secondTimeSlotId: "", status: "active", notes: "",
     chargeEnrollment: true,
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const set = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { alert("La foto debe ser menor a 2MB"); return; }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setPhotoPreview(base64);
+      setForm(f => ({ ...f, photo: base64 }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removePhoto = () => {
+    setPhotoPreview(null);
+    setForm(f => ({ ...f, photo: "" }));
+  };
 
   const filteredSlots = timeSlots?.filter(s =>
     form.modality === "nat5x"
@@ -34,7 +54,7 @@ export default function NuevoAlumnoPage() {
     ? (timeSlots?.filter(s => s.modalities.includes("mj")) ?? [])
     : [];
 
-  const modalityOptions = Object.entries(MODALITY_LABELS).map(([v, l]) => ({ value: v, label: l }));
+  const modalityOptions = classes?.map(c => ({ value: c.key, label: c.name })) ?? [];
   const slotOptions = filteredSlots.map(s => ({ value: s._id, label: s.label }));
   const mjSlotOptions = mjSlots.map(s => ({ value: s._id, label: s.label }));
 
@@ -42,6 +62,7 @@ export default function NuevoAlumnoPage() {
     const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = "Nombre requerido";
     if (!form.phone.trim()) e.phone = "Teléfono requerido";
+    if (!form.modality) e.modality = "Selecciona una modalidad";
     if (!form.timeSlotId) e.timeSlotId = "Selecciona un horario";
     if (form.modality === "nat5x" && !form.secondTimeSlotId) e.secondTimeSlotId = "Selecciona un horario MJ";
     return e;
@@ -56,9 +77,10 @@ export default function NuevoAlumnoPage() {
       await create({
         name: form.name.trim(),
         phone: form.phone.trim(),
+        photo: form.photo || undefined,
         dob: form.dob || undefined,
         enrollmentDate: form.enrollmentDate,
-        modality: form.modality as "lmv" | "mj" | "aquagym3x" | "aquagym5x" | "nat5x",
+        modality: form.modality,
         timeSlotId: form.timeSlotId as Id<"timeSlots">,
         secondTimeSlotId: form.modality === "nat5x" && form.secondTimeSlotId
           ? form.secondTimeSlotId as Id<"timeSlots">
@@ -79,9 +101,32 @@ export default function NuevoAlumnoPage() {
       <form onSubmit={handleSubmit} style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
         <Input label="Nombre completo" value={form.name} onChange={e => set("name", e.target.value)} placeholder="Ej. María García" error={errors.name} />
         <Input label="Teléfono" value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="Ej. 0412-1234567" type="tel" error={errors.phone} />
+
+        {/* Photo */}
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 8 }}>Foto del alumno</label>
+          {photoPreview ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <img src={photoPreview} alt="Preview" style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: "1.5px solid var(--border)" }} />
+              <button type="button" onClick={removePhoto} style={{ fontSize: 12, color: "var(--overdue-coral)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Quitar foto</button>
+            </div>
+          ) : (
+            <label style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "12px 14px", borderRadius: 12, border: "1.5px dashed var(--border)",
+              cursor: "pointer", fontSize: 14, color: "var(--text-secondary)",
+              fontFamily: "var(--font)", background: "var(--surface)",
+            }}>
+              <span style={{ fontSize: 20 }}>📷</span>
+              <span>Seleccionar foto</span>
+              <input type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: "none" }} />
+            </label>
+          )}
+        </div>
+
         <Input label="Fecha de nacimiento (opcional)" value={form.dob} onChange={e => set("dob", e.target.value)} type="date" />
         <Input label="Fecha de inscripción" value={form.enrollmentDate} onChange={e => set("enrollmentDate", e.target.value)} type="date" />
-        <Select label="Modalidad" value={form.modality} onChange={e => { set("modality", e.target.value); set("timeSlotId", ""); set("secondTimeSlotId", ""); }} options={modalityOptions} />
+        <Select label="Modalidad" value={form.modality} onChange={e => { set("modality", e.target.value); set("timeSlotId", ""); set("secondTimeSlotId", ""); }} options={[{ value: "", label: "Seleccionar modalidad..." }, ...modalityOptions]} error={errors.modality} />
         <Select label={form.modality === "nat5x" ? "Horario LMV (Lun/Mié/Vie)" : "Horario"} value={form.timeSlotId} onChange={e => set("timeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar horario..." }, ...slotOptions]} error={errors.timeSlotId} />
         {form.modality === "nat5x" && (
           <Select label="Horario MJ (Mar/Jue)" value={form.secondTimeSlotId} onChange={e => set("secondTimeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar horario MJ..." }, ...mjSlotOptions]} error={errors.secondTimeSlotId} />

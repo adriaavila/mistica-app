@@ -351,15 +351,8 @@ export const generateMonthly = mutation({
       .withIndex("by_status", (q) => q.eq("status", "active"))
       .collect();
 
-    const configs = await ctx.db.query("appConfig").collect();
-    const configMap = Object.fromEntries(configs.map((c) => [c.key, c.value]));
-    const priceMap: Record<string, number> = {
-      lmv: parseFloat(configMap.price_lmv ?? "0"),
-      mj: parseFloat(configMap.price_mj ?? "0"),
-      aquagym3x: parseFloat(configMap.price_aquagym3x ?? "0"),
-      aquagym5x: parseFloat(configMap.price_aquagym5x ?? "0"),
-      nat5x: parseFloat(configMap.price_nat5x ?? "0"),
-    };
+    const allClasses = await ctx.db.query("classes").collect();
+    const priceMap = Object.fromEntries(allClasses.map((c) => [c.key, c.price]));
 
     const [year, month] = args.month.split("-").map(Number);
     let created = 0;

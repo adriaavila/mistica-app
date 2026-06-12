@@ -133,15 +133,10 @@ export const create = mutation({
   args: {
     name: v.string(),
     phone: v.string(),
+    photo: v.optional(v.string()),
     dob: v.optional(v.string()),
     enrollmentDate: v.string(),
-    modality: v.union(
-      v.literal("lmv"),
-      v.literal("mj"),
-      v.literal("aquagym3x"),
-      v.literal("aquagym5x"),
-      v.literal("nat5x")
-    ),
+    modality: v.string(),
     timeSlotId: v.id("timeSlots"),
     secondTimeSlotId: v.optional(v.id("timeSlots")),
     status: v.union(
@@ -162,36 +157,19 @@ export const create = mutation({
       createdAt: Date.now(),
     });
 
-    const modalityPriceKeys: Record<string, string> = {
-      lmv: "price_lmv",
-      mj: "price_mj",
-      aquagym3x: "price_aquagym3x",
-      aquagym5x: "price_aquagym5x",
-      nat5x: "price_nat5x",
-    };
-
     const enrollmentConfig = await ctx.db
       .query("appConfig")
       .withIndex("by_key", (q) => q.eq("key", "price_enrollment"))
       .first();
-    const monthlyConfig = await ctx.db
-      .query("appConfig")
-      .withIndex("by_key", (q) =>
-        q.eq("key", modalityPriceKeys[args.modality])
-      )
-      .first();
-
     const enrollmentFee = enrollmentConfig
       ? parseFloat(enrollmentConfig.value)
       : 60;
-    const defaultMonthly =
-      args.modality === "mj" ? 220
-      : args.modality === "aquagym5x" ? 300
-      : args.modality === "nat5x" ? 400
-      : 250;
-    const monthlyFee = monthlyConfig
-      ? parseFloat(monthlyConfig.value)
-      : defaultMonthly;
+
+    const classConfig = await ctx.db
+      .query("classes")
+      .withIndex("by_key", (q) => q.eq("key", args.modality))
+      .first();
+    const monthlyFee = classConfig?.price ?? 250;
 
     // Enrollment payment — paid on registration (if requested)
     if (chargeEnrollment !== false) {
@@ -233,17 +211,10 @@ export const update = mutation({
     id: v.id("students"),
     name: v.optional(v.string()),
     phone: v.optional(v.string()),
+    photo: v.optional(v.string()),
     dob: v.optional(v.string()),
     enrollmentDate: v.optional(v.string()),
-    modality: v.optional(
-      v.union(
-        v.literal("lmv"),
-        v.literal("mj"),
-        v.literal("aquagym3x"),
-        v.literal("aquagym5x"),
-        v.literal("nat5x")
-      )
-    ),
+    modality: v.optional(v.string()),
     timeSlotId: v.optional(v.id("timeSlots")),
     secondTimeSlotId: v.optional(v.id("timeSlots")),
     status: v.optional(
