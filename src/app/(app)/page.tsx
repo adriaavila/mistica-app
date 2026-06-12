@@ -9,15 +9,8 @@ export default function HomePage() {
   const stats = useQuery(api.payments.getDashboardStats);
   const analytics = useQuery(api.payments.getAnalytics);
   const todaySlots = useQuery(api.attendance.getTodaySummary, { date: todayStr() });
-  const seedConfig = useMutation(api.appConfig.seedDefaults);
-  const seedSlots = useMutation(api.timeSlots.seedDefaultSlots);
 
   const [aiTip, setAiTip] = useState<string | null>(null);
-
-  useEffect(() => {
-    seedConfig();
-    seedSlots();
-  }, []);
 
   useEffect(() => {
     if (!analytics || !stats) return;

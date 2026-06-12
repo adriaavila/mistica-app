@@ -31,6 +31,9 @@ export const clearStudents = mutation({
 export const seedStudents = mutation({
   args: {},
   handler: async (ctx) => {
+    const existingStudents = await ctx.db.query("students").collect();
+    if (existingStudents.length > 0) return { inserted: 0 };
+
     // Helper: get existing slot by label or create it
     const getOrCreateSlot = async (
       label: string,
