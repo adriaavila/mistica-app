@@ -229,6 +229,7 @@ const inputStyle: React.CSSProperties = {
 
 export default function MasPage() {
   const config = useQuery(api.appConfig.getAll);
+  const classes = useQuery(api.classes.list, {});
   const todaySlots = useQuery(api.attendance.getTodaySummary, { date: todayStr() });
   const setConfig = useMutation(api.appConfig.set);
   const createClass = useMutation(api.classes.create);
@@ -351,7 +352,7 @@ export default function MasPage() {
             >+ Nueva</button>
           </div>
           <Card padding="0">
-            {!todaySlots ? (
+            {!todaySlots || !classes ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} style={{ height: 80, borderRadius: 16, background: "var(--surface-2)" }} />
               ))
@@ -360,29 +361,41 @@ export default function MasPage() {
                 No hay clases programadas hoy.
               </div>
             ) : (
-              todaySlots.map((slot, idx) => (
-                <div key={slot._id}>
-                  {idx > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 16px" }} />}
-                  <Link href={`/asistencia?slotId=${slot._id}&date=${todayStr()}`} style={{ textDecoration: "none" }}>
-                    <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+              todaySlots.map((slot, idx) => {
+                const slotClass = classes.find((cls) => slot.modalities.includes(cls.key));
+
+                return (
+                  <div key={slot._id}>
+                    {idx > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 16px" }} />}
+                    <button
+                      type="button"
+                      onClick={() => slotClass && setEditing(slotClass)}
+                      disabled={!slotClass}
+                      style={{
+                        width: "100%",
+                        padding: "14px 16px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 14,
+                        background: "transparent",
+                        border: "none",
+                        cursor: slotClass ? "pointer" : "default",
+                        fontFamily: "var(--font)",
+                        textAlign: "left",
+                      }}
+                    >
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{slot.label}</div>
                         <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
                           {slot.startTime} – {slot.endTime}
                         </div>
                       </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: slot.recorded ? "var(--paid-green)" : "var(--pool-blue)" }}>
-                          {slot.recorded ? "✓" : `${slot.activeStudents}`}
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-                          {slot.recorded ? "Tomada" : `/ ${slot.maxCapacity}`}
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-              ))
+                      <span style={{ color: "var(--text-secondary)", fontSize: 16, flexShrink: 0 }}>›</span>
+                    </button>
+                  </div>
+                );
+              })
             )}
           </Card>
         </div>
