@@ -8,6 +8,7 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Button from "@/components/ui/Button";
 import { todayStr } from "@/lib/utils";
+import { readStudentPhoto } from "@/lib/studentPhoto";
 import { Id } from "../../../../../convex/_generated/dataModel";
 
 export default function NuevoAlumnoPage() {
@@ -27,17 +28,16 @@ export default function NuevoAlumnoPage() {
 
   const set = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { alert("La foto debe ser menor a 2MB"); return; }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = reader.result as string;
-      setPhotoPreview(base64);
-      setForm(f => ({ ...f, photo: base64 }));
-    };
-    reader.readAsDataURL(file);
+    try {
+      const photo = await readStudentPhoto(file);
+      setPhotoPreview(photo);
+      setForm(f => ({ ...f, photo }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "No se pudo procesar la foto");
+    }
   };
 
   const removePhoto = () => {

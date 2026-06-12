@@ -1,14 +1,14 @@
 "use client";
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { api } from "../../../../convex/_generated/api";
 
 export default function DiagnosticoPage() {
-  const students = useQuery(api.students.list);
-  const classes = useQuery(api.classes.list);
-  const slots = useQuery(api.timeSlots.list);
-  const payments = useQuery(api.payments.listAll);
-  const stats = useQuery(api.payments.getDashboardStats);
-  const analytics = useQuery(api.payments.getAnalytics);
+  const students = useQuery(api.students.list, {});
+  const classes = useQuery(api.classes.list, {});
+  const slots = useQuery(api.timeSlots.list, {});
+  const payments = useQuery(api.payments.listAll, {});
+  const stats = useQuery(api.payments.getDashboardStats, {});
+  const analytics = useQuery(api.payments.getAnalytics, {});
 
   return (
     <div style={{ fontFamily: "var(--font)", padding: 20 }}>
