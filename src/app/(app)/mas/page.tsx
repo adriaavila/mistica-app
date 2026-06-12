@@ -7,7 +7,7 @@ import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import { formatCurrency } from "@/lib/utils";
+import { todayStr } from "@/lib/utils";
 
 const ALL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const DAY_LABELS: Record<string, string> = {
@@ -229,7 +229,7 @@ const inputStyle: React.CSSProperties = {
 
 export default function MasPage() {
   const config = useQuery(api.appConfig.getAll);
-  const classes = useQuery(api.classes.list, {});
+  const todaySlots = useQuery(api.attendance.getTodaySummary, { date: todayStr() });
   const setConfig = useMutation(api.appConfig.set);
   const createClass = useMutation(api.classes.create);
   const updateClass = useMutation(api.classes.update);
@@ -351,45 +351,36 @@ export default function MasPage() {
             >+ Nueva</button>
           </div>
           <Card padding="0">
-            {!classes ? (
+            {!todaySlots ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} style={{ height: 80, borderRadius: 16, background: "var(--surface-2)" }} />
               ))
-            ) : classes.length === 0 ? (
+            ) : todaySlots.length === 0 ? (
               <div style={{ padding: 24, textAlign: "center", color: "var(--text-secondary)", fontSize: 14 }}>
-                Sin clases. Toca + Nueva para crear una.
+                No hay clases programadas hoy.
               </div>
             ) : (
-              classes.map((cls, idx) => (
-                <div key={cls._id}>
+              todaySlots.map((slot, idx) => (
+                <div key={slot._id}>
                   {idx > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 16px" }} />}
-                  <div
-                    style={{ padding: "14px 16px", cursor: "pointer", opacity: cls.isActive ? 1 : 0.5 }}
-                    onClick={() => setEditing(cls)}
-                  >
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{cls.name}</div>
+                  <Link href={`/asistencia?slotId=${slot._id}&date=${todayStr()}`} style={{ textDecoration: "none" }}>
+                    <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{slot.label}</div>
                         <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                          {cls.startTime} – {cls.endTime} · {cls.days.map(d => DAY_LABELS[d] ?? d).join(", ")}
+                          {slot.startTime} – {slot.endTime}
                         </div>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--pool-blue)" }}>
-                          {formatCurrency(cls.price, config?.currency ?? "Bs")}
-                        </span>
-                        {!cls.isActive && (
-                          <span style={{
-                            fontSize: 11, fontWeight: 700, color: "var(--text-secondary)",
-                            background: "var(--surface-2)", borderRadius: 6, padding: "3px 8px",
-                          }}>Inactiva</span>
-                        )}
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: slot.recorded ? "var(--paid-green)" : "var(--pool-blue)" }}>
+                          {slot.recorded ? "✓" : `${slot.activeStudents}`}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                          {slot.recorded ? "Tomada" : `/ ${slot.maxCapacity}`}
+                        </div>
                       </div>
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                      {cls.description}
-                    </div>
-                  </div>
+                  </Link>
                 </div>
               ))
             )}

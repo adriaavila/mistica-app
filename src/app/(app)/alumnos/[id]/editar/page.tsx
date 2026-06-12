@@ -10,6 +10,8 @@ import Button from "@/components/ui/Button";
 import { readStudentPhoto } from "@/lib/studentPhoto";
 import { Id } from "../../../../../../convex/_generated/dataModel";
 
+const DUPLICATE_NAME_MESSAGE = "Ya existe un alumno con ese nombre.";
+
 export default function EditarAlumnoPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -20,6 +22,7 @@ export default function EditarAlumnoPage() {
 
   const [form, setForm] = useState({ name: "", phone: "", photo: "", dob: "", enrollmentDate: "", modality: "", timeSlotId: "", secondTimeSlotId: "", status: "active", notes: "" });
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [ready, setReady] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
@@ -31,7 +34,10 @@ export default function EditarAlumnoPage() {
     }
   }, [student, ready]);
 
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k: string, v: string) => {
+    if (k === "name" && errors.name) setErrors(e => ({ ...e, name: "" }));
+    setForm(f => ({ ...f, [k]: v }));
+  };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -81,7 +87,12 @@ export default function EditarAlumnoPage() {
         notes: form.notes || undefined,
       });
       router.push(`/alumnos/${id}`);
-    } catch { setLoading(false); }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Ya existe un alumno")) {
+        setErrors({ name: DUPLICATE_NAME_MESSAGE });
+      }
+      setLoading(false);
+    }
   };
 
   if (!ready) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)", fontFamily: "var(--font)" }}>Cargando...</div>;
@@ -90,7 +101,7 @@ export default function EditarAlumnoPage() {
     <div style={{ fontFamily: "var(--font)" }}>
       <PageHeader title="Editar alumno" back />
       <form onSubmit={handleSubmit} style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
-        <Input label="Nombre completo" value={form.name} onChange={e => set("name", e.target.value)} />
+        <Input label="Nombre completo" value={form.name} onChange={e => set("name", e.target.value)} error={errors.name} />
         <Input label="Teléfono" value={form.phone} onChange={e => set("phone", e.target.value)} type="tel" />
 
         {/* Photo */}

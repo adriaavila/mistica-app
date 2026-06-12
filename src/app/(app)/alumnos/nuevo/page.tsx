@@ -11,6 +11,8 @@ import { todayStr } from "@/lib/utils";
 import { readStudentPhoto } from "@/lib/studentPhoto";
 import { Id } from "../../../../../convex/_generated/dataModel";
 
+const DUPLICATE_NAME_MESSAGE = "Ya existe un alumno con ese nombre.";
+
 export default function NuevoAlumnoPage() {
   const router = useRouter();
   const create = useMutation(api.students.create);
@@ -26,7 +28,10 @@ export default function NuevoAlumnoPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  const set = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k: string, v: string | boolean) => {
+    if (k === "name" && errors.name) setErrors(e => ({ ...e, name: "" }));
+    setForm(f => ({ ...f, [k]: v }));
+  };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -90,7 +95,10 @@ export default function NuevoAlumnoPage() {
         chargeEnrollment: form.chargeEnrollment,
       });
       router.push("/alumnos");
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Ya existe un alumno")) {
+        setErrors({ name: DUPLICATE_NAME_MESSAGE });
+      }
       setLoading(false);
     }
   };

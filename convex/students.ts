@@ -1,5 +1,31 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, MutationCtx, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
+
+const DUPLICATE_STUDENT_NAME_ERROR = "Ya existe un alumno con ese nombre.";
+
+function normalizeStudentName(name: string) {
+  return name
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+async function findStudentByName(
+  ctx: MutationCtx,
+  name: string,
+  excludeId?: Id<"students">
+) {
+  const normalizedName = normalizeStudentName(name);
+  const students = await ctx.db.query("students").collect();
+  return students.find(
+    (student) =>
+      student._id !== excludeId &&
+      normalizeStudentName(student.name) === normalizedName
+  );
+}
 
 export const list = query({
   args: {
@@ -152,8 +178,13 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const { chargeEnrollment, ...studentFields } = args;
+    const name = args.name.trim();
+    const duplicate = await findStudentByName(ctx, name);
+    if (duplicate) throw new Error(DUPLICATE_STUDENT_NAME_ERROR);
+
     const studentId = await ctx.db.insert("students", {
       ...studentFields,
+      name,
       createdAt: Date.now(),
     });
 
@@ -234,6 +265,11 @@ export const update = mutation({
     const existing = await ctx.db.get(id);
     if (!existing) throw new Error("Student not found");
     const patch: typeof fields & { originalEnrollmentDate?: string } = { ...fields };
+    if (fields.name !== undefined) {
+      patch.name = fields.name.trim();
+      const duplicate = await findStudentByName(ctx, patch.name, id);
+      if (duplicate) throw new Error(DUPLICATE_STUDENT_NAME_ERROR);
+    }
     if (fields.enrollmentDate && fields.enrollmentDate !== existing.enrollmentDate && !existing.originalEnrollmentDate) {
       patch.originalEnrollmentDate = existing.enrollmentDate;
     }
