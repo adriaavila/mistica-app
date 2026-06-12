@@ -20,20 +20,23 @@ const LABELS: Record<BadgeVariant, string> = {
   lmv: "LMV", mj: "MJ", aquagym3x: "AG 3x", aquagym5x: "AG 5x", nat5x: "N 5x",
 };
 
-export default function Badge({ variant, label, size = "md" }: {
-  variant: BadgeVariant; label?: string; size?: "sm" | "md";
+export default function Badge({ variant, label, size = "md", bg, color }: {
+  variant?: BadgeVariant; label?: string; size?: "sm" | "md"; bg?: string; color?: string;
 }) {
-  const s = STYLES[variant];
+  const s = variant ? STYLES[variant] : undefined;
+  const background = bg ?? s?.bg ?? "var(--surface-2)";
+  const textColor = color ?? s?.color ?? "var(--text-secondary)";
+  const text = label ?? (variant ? LABELS[variant] : "—");
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 5,
       fontSize: size === "sm" ? 11 : 12, fontWeight: 600,
       padding: size === "sm" ? "3px 8px" : "4px 10px",
-      borderRadius: 9999, background: s.bg, color: s.color,
+      borderRadius: 9999, background: background, color: textColor,
       whiteSpace: "nowrap", fontFamily: "var(--font)",
     }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color, display: "inline-block", flexShrink: 0 }} />
-      {label ?? LABELS[variant]}
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: textColor, display: "inline-block", flexShrink: 0 }} />
+      {text}
     </span>
   );
 }

@@ -16,9 +16,22 @@ function nameColor(name: string) {
   return COLORS[Math.abs(h) % COLORS.length];
 }
 
-export default function Avatar({ name, size = 44, fontSize }: { name: string; size?: number; fontSize?: number }) {
-  const { bg, color } = nameColor(name);
+export default function Avatar({ name, size = 44, fontSize, src }: { name: string; size?: number; fontSize?: number; src?: string | null }) {
   const fs = fontSize ?? Math.floor(size * 0.34);
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        style={{
+          width: size, height: size, borderRadius: "50%",
+          objectFit: "cover", flexShrink: 0,
+          border: "1.5px solid var(--border)",
+        }}
+      />
+    );
+  }
+  const { bg, color } = nameColor(name);
   return (
     <div style={{
       width: size, height: size, borderRadius: "50%",

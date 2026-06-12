@@ -328,7 +328,7 @@ function AsistenciaContent() {
                   boxShadow: "var(--shadow-card)", display: "flex", alignItems: "center", gap: 12,
                 }}
               >
-                <Avatar name={student.name} size={40} />
+                <Avatar name={student.name} size={40} src={student.photo} />
 
                 {/* Name — tappable to open history */}
                 <div

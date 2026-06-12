@@ -7,7 +7,7 @@ import Avatar from "@/components/ui/Avatar";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import SegmentedControl from "@/components/ui/SegmentedControl";
-import { MODALITY_SHORT } from "@/lib/utils";
+import { MODALITY_SHORT, MODALITY_LABELS, MODALITY_COLORS } from "@/lib/utils";
 
 export default function AlumnosPage() {
   const [filter, setFilter] = useState("all");
@@ -16,6 +16,22 @@ export default function AlumnosPage() {
   const students = useQuery(api.students.listWithDetails, {
     status: filter === "all" ? undefined : filter === "active" ? "active" : "suspended",
   });
+  const classes = useQuery(api.classes.list, {});
+
+  const classMap = useMemo(() => {
+    const map: Record<string, { name: string; bg: string; color: string }> = {};
+    classes?.forEach(c => {
+      map[c.key] = { name: c.name, bg: "var(--pool-light)", color: "var(--pool-blue)" };
+    });
+    // Fallback for hardcoded known keys
+    Object.entries(MODALITY_LABELS).forEach(([key, name]) => {
+      if (!map[key]) {
+        const colors = MODALITY_COLORS[key] ?? { bg: "var(--pool-light)", color: "var(--pool-blue)" };
+        map[key] = { name, bg: colors.bg, color: colors.color };
+      }
+    });
+    return map;
+  }, [classes]);
 
   const filtered = useMemo(() => {
     if (!students) return [];
@@ -67,13 +83,13 @@ export default function AlumnosPage() {
           filtered.map(student => (
             <Link key={student._id} href={`/alumnos/${student._id}`} style={{ textDecoration: "none" }}>
               <div style={{ background: "var(--white)", borderRadius: 16, padding: "12px 14px", boxShadow: "var(--shadow-card)", display: "flex", alignItems: "center", gap: 12, borderLeft: student.paymentStatus === "overdue" ? "3px solid var(--overdue-coral)" : undefined }}>
-                <Avatar name={student.name} size={44} />
+                <Avatar name={student.name} size={44} src={student.photo} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{student.name}</div>
                   <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{student.timeSlot?.label ?? "Sin horario"}</div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                  <Badge variant={student.modality as "lmv" | "mj" | "aquagym3x" | "aquagym5x" | "nat5x"} size="sm" />
+                  <Badge size="sm" label={classMap[student.modality]?.name ?? MODALITY_SHORT[student.modality] ?? student.modality} bg={classMap[student.modality]?.bg} color={classMap[student.modality]?.color} />
                   <Badge variant={student.paymentStatus as "paid" | "pending" | "overdue"} size="sm" />
                 </div>
                 <span style={{ color: "var(--text-secondary)", fontSize: 16, marginLeft: 4 }}>›</span>

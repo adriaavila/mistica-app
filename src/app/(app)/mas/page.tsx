@@ -2,41 +2,290 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
 import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { formatCurrency } from "@/lib/utils";
 
-interface PriceField { key: string; label: string; description: string; }
+const ALL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+const DAY_LABELS: Record<string, string> = {
+  Mon:"Lun", Tue:"Mar", Wed:"Mié", Thu:"Jue", Fri:"Vie", Sat:"Sáb", Sun:"Dom",
+};
 
-const PRICE_FIELDS: PriceField[] = [
-  { key: "price_enrollment", label: "Inscripción", description: "Pago único al inscribirse" },
-  { key: "price_lmv", label: "Natación LMV", description: "Mensualidad Lun-Mié-Vie" },
-  { key: "price_mj", label: "Natación MJ", description: "Mensualidad Mar-Jue" },
-  { key: "price_aquagym3x", label: "Aqua Gym 3x", description: "Mensualidad 3 veces/semana" },
-  { key: "price_aquagym5x", label: "Aqua Gym 5x", description: "Mensualidad 5 veces/semana" },
-  { key: "price_nat5x", label: "Natación 5 días", description: "Mensualidad 5 días/semana" },
-];
+type ClassDoc = {
+  _id: Id<"classes">;
+  key: string;
+  name: string;
+  description: string;
+  price: number;
+  isActive: boolean;
+  days: string[];
+  startTime: string;
+  endTime: string;
+};
+
+type FormState = {
+  key: string;
+  name: string;
+  description: string;
+  price: string;
+  isActive: boolean;
+  days: string[];
+  startTime: string;
+  endTime: string;
+};
+
+const EMPTY_FORM: FormState = {
+  key: "",
+  name: "",
+  description: "",
+  price: "",
+  isActive: true,
+  days: [],
+  startTime: "08:00",
+  endTime: "09:00",
+};
+
+function ClassForm({
+  initial,
+  onSave,
+  onClose,
+  onDelete,
+  saving,
+  isNew,
+}: {
+  initial: FormState;
+  onSave: (f: FormState) => void;
+  onClose: () => void;
+  onDelete?: () => void;
+  saving: boolean;
+  isNew: boolean;
+}) {
+  const [form, setForm] = useState<FormState>(initial);
+
+  const toggleDay = (day: string) =>
+    setForm(f => ({
+      ...f,
+      days: f.days.includes(day) ? f.days.filter(d => d !== day) : [...f.days, day],
+    }));
+
+  const valid = form.key.trim() && form.name.trim() && form.days.length > 0 && parseFloat(form.price) > 0;
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 100,
+        background: "rgba(0,0,0,0.5)", display: "flex",
+        alignItems: "flex-end", justifyContent: "center",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          width: "100%", maxWidth: 480, background: "#fff",
+          borderRadius: "20px 20px 0 0", maxHeight: "90dvh",
+          overflowY: "auto", fontFamily: "var(--font)",
+          padding: "24px 20px calc(28px + env(safe-area-inset-bottom))",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 20 }}>
+          {isNew ? "Nueva clase" : "Editar clase"}
+        </div>
+
+        {isNew && (
+          <>
+            <label style={labelStyle}>Clave única (sin espacios)</label>
+            <input
+              value={form.key}
+              onChange={(e) => setForm(f => ({ ...f, key: e.target.value.toLowerCase().replace(/\s/g, "") }))}
+              placeholder="Ej. natacion_avanzada"
+              style={inputStyle}
+            />
+          </>
+        )}
+
+        <label style={labelStyle}>Nombre</label>
+        <input
+          value={form.name}
+          onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+          placeholder="Ej. Natación Avanzada"
+          style={inputStyle}
+        />
+
+        <label style={labelStyle}>Descripción</label>
+        <input
+          value={form.description}
+          onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
+          placeholder="Ej. Mensualidad avanzada"
+          style={inputStyle}
+        />
+
+        <label style={labelStyle}>Precio mensual</label>
+        <input
+          type="number"
+          value={form.price}
+          onChange={(e) => setForm(f => ({ ...f, price: e.target.value }))}
+          placeholder="0"
+          style={inputStyle}
+        />
+
+        <label style={labelStyle}>Días</label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+          {ALL_DAYS.map(day => (
+            <button
+              key={day}
+              onClick={() => toggleDay(day)}
+              style={{
+                padding: "7px 12px", borderRadius: 10, fontSize: 13, fontWeight: 600,
+                border: "1.5px solid",
+                borderColor: form.days.includes(day) ? "var(--pool-blue)" : "var(--border)",
+                background: form.days.includes(day) ? "var(--pool-light)" : "transparent",
+                color: form.days.includes(day) ? "var(--pool-blue)" : "var(--text-secondary)",
+                cursor: "pointer", fontFamily: "var(--font)",
+              }}
+            >{DAY_LABELS[day]}</button>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+          <div>
+            <label style={labelStyle}>Hora inicio</label>
+            <input
+              type="time" value={form.startTime}
+              onChange={(e) => setForm(f => ({ ...f, startTime: e.target.value }))}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Hora fin</label>
+            <input
+              type="time" value={form.endTime}
+              onChange={(e) => setForm(f => ({ ...f, endTime: e.target.value }))}
+              style={inputStyle}
+            />
+          </div>
+        </div>
+
+        <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, cursor: "pointer" }}>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>Clase activa</span>
+          <div
+            onClick={() => setForm(f => ({ ...f, isActive: !f.isActive }))}
+            style={{
+              width: 48, height: 28, borderRadius: 99,
+              background: form.isActive ? "var(--paid-green)" : "var(--border)",
+              position: "relative", transition: "background 0.2s", cursor: "pointer",
+            }}
+          >
+            <div style={{
+              position: "absolute", top: 3, left: form.isActive ? 23 : 3,
+              width: 22, height: 22, borderRadius: "50%",
+              background: "#fff", transition: "left 0.2s",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+            }} />
+          </div>
+        </label>
+
+        <button
+          onClick={() => onSave(form)}
+          disabled={!valid || saving}
+          style={{
+            width: "100%", padding: "14px",
+            background: !valid || saving ? "var(--surface-2)" : "var(--pool-blue)",
+            color: !valid || saving ? "var(--text-secondary)" : "#fff",
+            border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700,
+            cursor: !valid || saving ? "default" : "pointer", fontFamily: "var(--font)",
+          }}
+        >{saving ? "Guardando…" : "Guardar"}</button>
+
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            style={{
+              width: "100%", marginTop: 10, padding: "12px",
+              background: "none", border: "none",
+              color: "var(--overdue-coral)", fontSize: 14,
+              fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)",
+            }}
+          >Eliminar clase</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 13, fontWeight: 600, color: "var(--text-secondary)",
+  display: "block", marginBottom: 6,
+};
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "12px 14px", borderRadius: 12,
+  border: "1.5px solid var(--border)", fontSize: 15,
+  fontFamily: "var(--font)", marginBottom: 16,
+  boxSizing: "border-box", background: "var(--surface)",
+};
 
 export default function MasPage() {
   const config = useQuery(api.appConfig.getAll);
+  const classes = useQuery(api.classes.list, {});
   const setConfig = useMutation(api.appConfig.set);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
+  const createClass = useMutation(api.classes.create);
+  const updateClass = useMutation(api.classes.update);
+  const removeClass = useMutation(api.classes.remove);
+
+  const [editing, setEditing] = useState<ClassDoc | null | "new">(null);
   const [saving, setSaving] = useState(false);
 
-  const startEdit = (key: string) => {
-    setEditing(key);
-    setEditValue(config?.[key] ?? "");
-  };
+  const [editingAlert, setEditingAlert] = useState(false);
+  const [editAlertValue, setEditAlertValue] = useState("");
 
-  const saveEdit = async () => {
-    if (!editing) return;
+  const handleSave = async (form: FormState) => {
     setSaving(true);
-    await setConfig({ key: editing, value: editValue });
+    if (editing === "new") {
+      await createClass({
+        key: form.key,
+        name: form.name,
+        description: form.description,
+        price: parseFloat(form.price),
+        isActive: form.isActive,
+        days: form.days,
+        startTime: form.startTime,
+        endTime: form.endTime,
+      });
+    } else if (editing) {
+      await updateClass({
+        id: editing._id,
+        name: form.name,
+        description: form.description,
+        price: parseFloat(form.price),
+        isActive: form.isActive,
+        days: form.days,
+        startTime: form.startTime,
+        endTime: form.endTime,
+      });
+    }
     setSaving(false);
     setEditing(null);
+  };
+
+  const handleDelete = async (id: Id<"classes">) => {
+    if (!confirm("¿Eliminar esta clase? Los alumnos asignados seguirán con su modalidad, pero no podrás asignar nuevos alumnos a esta clase.")) return;
+    await removeClass({ id });
+    setEditing(null);
+  };
+
+  const saveAlert = async () => {
+    setSaving(true);
+    await setConfig({ key: "alert_days_before_due", value: editAlertValue });
+    setSaving(false);
+    setEditingAlert(false);
+  };
+
+  const startAlertEdit = () => {
+    setEditingAlert(true);
+    setEditAlertValue(config?.alert_days_before_due ?? "7");
   };
 
   return (
@@ -88,39 +337,62 @@ export default function MasPage() {
           </Card>
         </div>
 
-        {/* Pricing */}
+        {/* Classes */}
         <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 12 }}>Precios ({config?.currency ?? "Bs"})</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>Clases</div>
+            <button
+              onClick={() => setEditing("new")}
+              style={{
+                background: "var(--pool-light)", borderRadius: 99, padding: "6px 14px",
+                fontSize: 13, fontWeight: 700, color: "var(--pool-blue)",
+                border: "none", cursor: "pointer", fontFamily: "var(--font)",
+              }}
+            >+ Nueva</button>
+          </div>
           <Card padding="0">
-            {PRICE_FIELDS.map((field, idx) => (
-              <div key={field.key}>
-                {idx > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 16px" }} />}
-                <div style={{ padding: "14px 16px" }}>
-                  {editing === field.key ? (
-                    <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
-                      <div style={{ flex: 1 }}>
-                        <Input label={field.label} value={editValue} onChange={e => setEditValue(e.target.value)} type="number" />
-                      </div>
-                      <Button variant="brand" size="sm" onClick={saveEdit} loading={saving}>✓</Button>
-                      <Button variant="outline" size="sm" onClick={() => setEditing(null)}>✕</Button>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }} onClick={() => startEdit(field.key)}>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{field.label}</div>
-                        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{field.description}</div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--pool-blue)" }}>
-                          {config ? formatCurrency(parseFloat(config[field.key] ?? "0"), config.currency ?? "Bs") : "—"}
-                        </span>
-                        <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>✏️</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
+            {!classes ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} style={{ height: 80, borderRadius: 16, background: "var(--surface-2)" }} />
+              ))
+            ) : classes.length === 0 ? (
+              <div style={{ padding: 24, textAlign: "center", color: "var(--text-secondary)", fontSize: 14 }}>
+                Sin clases. Toca + Nueva para crear una.
               </div>
-            ))}
+            ) : (
+              classes.map((cls, idx) => (
+                <div key={cls._id}>
+                  {idx > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 16px" }} />}
+                  <div
+                    style={{ padding: "14px 16px", cursor: "pointer", opacity: cls.isActive ? 1 : 0.5 }}
+                    onClick={() => setEditing(cls)}
+                  >
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{cls.name}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                          {cls.startTime} – {cls.endTime} · {cls.days.map(d => DAY_LABELS[d] ?? d).join(", ")}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--pool-blue)" }}>
+                          {formatCurrency(cls.price, config?.currency ?? "Bs")}
+                        </span>
+                        {!cls.isActive && (
+                          <span style={{
+                            fontSize: 11, fontWeight: 700, color: "var(--text-secondary)",
+                            background: "var(--surface-2)", borderRadius: 6, padding: "3px 8px",
+                          }}>Inactiva</span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                      {cls.description}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </Card>
         </div>
 
@@ -129,16 +401,16 @@ export default function MasPage() {
           <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 12 }}>Alertas</div>
           <Card padding="0">
             <div style={{ padding: "14px 16px" }}>
-              {editing === "alert_days_before_due" ? (
+              {editingAlert ? (
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
                   <div style={{ flex: 1 }}>
-                    <Input label="Días de alerta antes de vencer" value={editValue} onChange={e => setEditValue(e.target.value)} type="number" />
+                    <Input label="Días de alerta antes de vencer" value={editAlertValue} onChange={e => setEditAlertValue(e.target.value)} type="number" />
                   </div>
-                  <Button variant="brand" size="sm" onClick={saveEdit} loading={saving}>✓</Button>
-                  <Button variant="outline" size="sm" onClick={() => setEditing(null)}>✕</Button>
+                  <Button variant="brand" size="sm" onClick={saveAlert} loading={saving}>✓</Button>
+                  <Button variant="outline" size="sm" onClick={() => setEditingAlert(false)}>✕</Button>
                 </div>
               ) : (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => startEdit("alert_days_before_due")}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={startAlertEdit}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>Alertar días antes de vencer</div>
                     <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>Muestra alerta en el dashboard</div>
@@ -159,6 +431,26 @@ export default function MasPage() {
           <div style={{ fontSize: 11, color: "var(--text-disabled, rgba(26,26,46,0.28))", marginTop: 4 }}>Todos los datos se sincronizan en tiempo real</div>
         </div>
       </div>
+
+      {editing && (
+        <ClassForm
+          isNew={editing === "new"}
+          initial={editing === "new" ? EMPTY_FORM : {
+            key: editing.key,
+            name: editing.name,
+            description: editing.description,
+            price: String(editing.price),
+            isActive: editing.isActive,
+            days: editing.days,
+            startTime: editing.startTime,
+            endTime: editing.endTime,
+          }}
+          onSave={handleSave}
+          onClose={() => setEditing(null)}
+          onDelete={editing !== "new" ? () => handleDelete(editing._id) : undefined}
+          saving={saving}
+        />
+      )}
     </div>
   );
 }

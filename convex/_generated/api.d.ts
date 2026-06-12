@@ -10,6 +10,7 @@
 
 import type * as appConfig from "../appConfig.js";
 import type * as attendance from "../attendance.js";
+import type * as classes from "../classes.js";
 import type * as marketing from "../marketing.js";
 import type * as payments from "../payments.js";
 import type * as permits from "../permits.js";
@@ -28,6 +29,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   appConfig: typeof appConfig;
   attendance: typeof attendance;
+  classes: typeof classes;
   marketing: typeof marketing;
   payments: typeof payments;
   permits: typeof permits;

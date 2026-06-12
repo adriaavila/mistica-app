@@ -5,15 +5,10 @@ export default defineSchema({
   students: defineTable({
     name: v.string(),
     phone: v.string(),
+    photo: v.optional(v.string()),
     dob: v.optional(v.string()),
     enrollmentDate: v.string(),
-    modality: v.union(
-      v.literal("lmv"),
-      v.literal("mj"),
-      v.literal("aquagym3x"),
-      v.literal("aquagym5x"),
-      v.literal("nat5x")
-    ),
+    modality: v.string(),
     timeSlotId: v.id("timeSlots"),
     secondTimeSlotId: v.optional(v.id("timeSlots")),
     status: v.union(
@@ -31,6 +26,18 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_modality", ["modality"])
     .index("by_timeSlot", ["timeSlotId"]),
+
+  classes: defineTable({
+    key: v.string(),
+    name: v.string(),
+    description: v.string(),
+    price: v.number(),
+    isActive: v.boolean(),
+    days: v.array(v.string()),
+    startTime: v.string(),
+    endTime: v.string(),
+  }).index("by_key", ["key"])
+    .index("by_active", ["isActive"]),
 
   timeSlots: defineTable({
     label: v.string(),
