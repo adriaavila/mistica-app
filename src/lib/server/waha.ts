@@ -494,6 +494,12 @@ export interface SendWahaTextArgs {
   sessionName?: string;
 }
 
+export interface SendWahaImageArgs extends SendWahaTextArgs {
+  imageUrl: string;
+  mimetype: string;
+  filename?: string;
+}
+
 /**
  * Sends a text message to a phone number via WAHA.
  */
@@ -531,5 +537,53 @@ export async function sendWahaText({
   } catch (err: unknown) {
     const safeError = getSafeWahaError(err);
     throw new Error(`Failed to send WhatsApp message to ${maskedPhone}: ${safeError.message}`);
+  }
+}
+
+/**
+ * Sends an image with the campaign message as its caption.
+ */
+export async function sendWahaImage({
+  phone,
+  message,
+  imageUrl,
+  mimetype,
+  filename,
+  sessionName = DEFAULT_WAHA_SESSION,
+}: SendWahaImageArgs): Promise<unknown> {
+  const resolvedSession = resolveWahaSessionName(sessionName);
+  const normalized = normalizePhone(phone);
+  if (!normalized) {
+    throw new Error(`Invalid phone number provided for sending: ${maskPhone(phone)}`);
+  }
+
+  const chatId = `${normalized}@c.us`;
+  const maskedPhone = maskPhone(normalized);
+
+  if (process.env.MKT_DRY_RUN === "true") {
+    console.log(`[DRY RUN] Bypassing WhatsApp image send to ${maskedPhone}.`);
+    return { id: `dry-run-image-${Date.now()}`, dryRun: true };
+  }
+
+  try {
+    return await wahaRequest("/api/sendImage", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        chatId,
+        file: {
+          url: imageUrl,
+          mimetype,
+          filename,
+        },
+        caption: message,
+        session: resolvedSession,
+      }),
+    });
+  } catch (err: unknown) {
+    const safeError = getSafeWahaError(err);
+    throw new Error(`Failed to send WhatsApp image to ${maskedPhone}: ${safeError.message}`);
   }
 }

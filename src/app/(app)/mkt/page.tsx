@@ -1,33 +1,43 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- previews use blob, data, and Convex storage URLs */
 
-import React, { useState, useEffect } from "react";
-import { useQuery } from "convex/react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  History,
+  ImagePlus,
+  LoaderCircle,
+  MessageCircle,
+  Pause,
+  Play,
+  RefreshCw,
+  Send,
+  Smartphone,
+  Trash2,
+  Users,
+  Wifi,
+  WifiOff,
+  X,
+} from "lucide-react";
+import { useMutation, useQuery } from "convex/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
-import PageHeader from "@/components/ui/PageHeader";
-import Card from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
-import Input from "@/components/ui/Input";
-import SegmentedControl from "@/components/ui/SegmentedControl";
-import Badge from "@/components/ui/Badge";
-
-function maskPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length <= 6) {
-    return "***";
-  }
-  const startLen = digits.length >= 12 ? 5 : 4;
-  const start = digits.substring(0, startLen);
-  const end = digits.substring(digits.length - 4);
-  return `${start}***${end}`;
-}
+import { Id } from "../../../../convex/_generated/dataModel";
+import styles from "./page.module.css";
 
 const AUTH_HEADERS = {
-  "Authorization": "Bearer Mistica-Admin246",
+  Authorization: "Bearer Mistica-Admin246",
   "Content-Type": "application/json",
 };
-
-type WahaUiStatus = "loading" | "disconnected" | "qr_required" | "connected" | "error";
 const WAHA_SESSION_NAME = "default";
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+type View = "compose" | "history";
+type Segment = "natacion" | "aquagym" | "all";
+type WahaUiStatus = "loading" | "disconnected" | "qr_required" | "connected" | "error";
 
 type WahaDebugState = {
   configured: boolean;
@@ -38,778 +48,752 @@ type WahaDebugState = {
   lastError: string | null;
 };
 
-type BatchSummary = {
-  attempted: number;
+type BatchProgress = {
+  target: number;
+  completed: number;
   sent: number;
   failed: number;
   remaining: number;
+  waitingSeconds: number;
 };
-
-type BadgeVariant = React.ComponentProps<typeof Badge>["variant"];
 
 function statusToUiStatus(status?: string | null): WahaUiStatus {
   if (status === "WORKING") return "connected";
-  if (status === "SCAN_QR" || status === "SCAN_QR_CODE" || status === "STARTING" || status === "STARTED") {
+  if (["SCAN_QR", "SCAN_QR_CODE", "STARTING", "STARTED"].includes(status ?? "")) {
     return "qr_required";
-  }
-  if (!status || status === "NOT_CREATED" || status === "STOPPED" || status === "FAILED") {
-    return "disconnected";
   }
   return "disconnected";
 }
 
-async function readApiJson<T extends Record<string, unknown>>(res: Response): Promise<T> {
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const error = data && typeof data === "object" && "error" in data ? String(data.error) : `HTTP ${res.status}`;
-    throw new Error(error);
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Ocurrió un error inesperado.";
+}
+
+async function readApiJson<T>(response: Response): Promise<T> {
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = data && typeof data === "object" && "error" in data
+      ? String(data.error)
+      : `HTTP ${response.status}`;
+    throw new Error(message);
   }
   return data as T;
 }
 
-function getErrorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : "Error desconocido";
+function maskPhone(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length <= 6) return "***";
+  return `${digits.slice(0, 4)}***${digits.slice(-4)}`;
 }
 
+function formatDate(timestamp: number) {
+  return new Intl.DateTimeFormat("es-BO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+function statusLabel(status: string) {
+  const labels: Record<string, string> = {
+    draft: "Sin destinatarios",
+    ready: "Lista para enviar",
+    sending: "En progreso",
+    paused: "Pausada",
+    done: "Completada",
+    error: "Con errores",
+  };
+  return labels[status] ?? status;
+}
+
+function segmentLabel(segment: Segment) {
+  return segment === "natacion" ? "Natación" : segment === "aquagym" ? "Aquagym" : "Toda la comunidad";
+}
+
+function renderPreview(message: string) {
+  return message
+    .replaceAll("{{nombre}}", "Mabel Hiza")
+    .replaceAll("{{alumno}}", "Jorge Zaid");
+}
+
+const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
 export default function MarketingPage() {
-  // 1. WhatsApp status states
+  const [view, setView] = useState<View>("compose");
+  const [selectedCampaignId, setSelectedCampaignId] = useState<Id<"marketingCampaigns"> | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
   const [wahaStatus, setWahaStatus] = useState<WahaUiStatus>("loading");
   const [wahaRawStatus, setWahaRawStatus] = useState<string | null>(null);
   const [wahaDebug, setWahaDebug] = useState<WahaDebugState | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [qrMessage, setQrMessage] = useState<string | null>(null);
-  const [loadingStatus, setLoadingStatus] = useState(false);
-  const [loadingStart, setLoadingStart] = useState(false);
-  const [loadingQr, setLoadingQr] = useState(false);
-  const [loadingLogout, setLoadingLogout] = useState(false);
+  const [connectionLoading, setConnectionLoading] = useState<string | null>(null);
+  const [isDryRun, setIsDryRun] = useState(false);
 
-  // 2. Campaign Builder states
-  const [segment, setSegment] = useState<"natacion" | "aquagym" | "all">("natacion");
+  const [name, setName] = useState("");
+  const [segment, setSegment] = useState<Segment>("natacion");
+  const [message, setMessage] = useState("Hola {{nombre}} 💙\n\n");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [creatingCampaign, setCreatingCampaign] = useState(false);
-
-  // 3. Campaign details (Convex real-time queries)
-  const campaigns = useQuery(api.marketing.listMarketingCampaigns);
-  const latestCampaign = campaigns?.find((campaign) => campaign.status !== "done") ?? campaigns?.[0];
-  const messages = useQuery(
-    api.marketing.listCampaignMessages,
-    latestCampaign ? { campaignId: latestCampaign._id } : "skip"
-  );
-
-  // 4. Action states
   const [testPhone, setTestPhone] = useState(
     typeof window !== "undefined" ? process.env.NEXT_PUBLIC_TEST_PHONE || "" : ""
   );
-  const [testStudentName, setTestStudentName] = useState("Jorge Zaid Zeballos");
-  const [testRecipientName, setTestRecipientName] = useState("Mabel Hiza");
   const [sendingTest, setSendingTest] = useState(false);
   const [sendingBatch, setSendingBatch] = useState(false);
-  const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [isDryRun, setIsDryRun] = useState<boolean>(false);
+  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
   const [pausingCampaign, setPausingCampaign] = useState(false);
 
-  // Fetch status on mount
-  useEffect(() => {
-    fetchWahaStatus();
-  }, []);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const stopBatchRef = useRef(false);
 
-  const fetchWahaStatus = async () => {
-    setLoadingStatus(true);
+  const campaigns = useQuery(api.marketing.listMarketingCampaigns);
+  const generateUploadUrl = useMutation(api.marketing.generateMarketingImageUploadUrl);
+  const selectedCampaign = campaigns?.find((campaign) => campaign._id === selectedCampaignId) ?? null;
+  const messages = useQuery(
+    api.marketing.listCampaignMessages,
+    selectedCampaignId ? { campaignId: selectedCampaignId } : "skip"
+  );
+
+  const totals = useMemo(() => {
+    const campaignMessages = messages ?? [];
+    return {
+      total: campaignMessages.length,
+      pending: campaignMessages.filter((item) => item.status === "pending").length,
+      sent: campaignMessages.filter((item) => item.status === "sent").length,
+      error: campaignMessages.filter((item) => item.status === "error").length,
+      skipped: campaignMessages.filter((item) => item.status === "skipped").length,
+    };
+  }, [messages]);
+
+  const fetchWahaStatus = useCallback(async () => {
+    setConnectionLoading("status");
     setActionError(null);
     try {
-      const res = await fetch("/api/mkt/whatsapp/status", {
-        headers: AUTH_HEADERS,
-      });
+      const response = await fetch("/api/mkt/whatsapp/status", { headers: AUTH_HEADERS });
       const data = await readApiJson<{
         online?: boolean;
         dryRun?: boolean;
         status?: string | null;
         lastError?: string | null;
-      }>(res);
-      
-      setIsDryRun(!!data.dryRun);
+      }>(response);
+      setIsDryRun(Boolean(data.dryRun));
       setWahaRawStatus(data.status ?? null);
       setQrMessage(data.lastError ?? null);
-
-      if (data.online) {
-        const nextStatus = statusToUiStatus(data.status);
-        setWahaStatus(nextStatus);
-        if (nextStatus === "connected") {
-          setQrCode(null);
-          setQrMessage("WhatsApp ya está conectado para esta sesión.");
-        } else if (nextStatus === "qr_required") {
-          fetchQrCode();
-        }
-      } else {
-        setWahaStatus("error");
-        setActionError(data.lastError || "No se pudo conectar con WAHA.");
-      }
-    } catch (err: unknown) {
-      console.error(err);
+      setWahaStatus(data.online ? statusToUiStatus(data.status) : "error");
+    } catch (error) {
       setWahaStatus("error");
-      setActionError(getErrorMessage(err));
+      setActionError(getErrorMessage(error));
     } finally {
-      setLoadingStatus(false);
+      setConnectionLoading(null);
     }
-  };
+  }, []);
 
-  const fetchWahaDebug = async () => {
-    setLoadingStatus(true);
-    setActionError(null);
-    try {
-      const res = await fetch("/api/mkt/whatsapp/debug", {
-        headers: AUTH_HEADERS,
-      });
-      const data = await readApiJson<WahaDebugState>(res);
-      setWahaDebug(data);
-      setWahaRawStatus(data.status ?? null);
-      setWahaStatus(data.canReachWaha ? statusToUiStatus(data.status) : "error");
-      if (data.lastError) {
-        setActionError(data.lastError);
-      }
-    } catch (err: unknown) {
-      setWahaStatus("error");
-      setActionError(getErrorMessage(err));
-    } finally {
-      setLoadingStatus(false);
-    }
-  };
+  useEffect(() => {
+    void fetchWahaStatus();
+  }, [fetchWahaStatus]);
+
+  useEffect(() => {
+    return () => {
+      stopBatchRef.current = true;
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
 
   const startSession = async () => {
-    setLoadingStart(true);
+    setConnectionLoading("start");
     setActionError(null);
-    setQrMessage(null);
     try {
-      const res = await fetch("/api/mkt/whatsapp/start", {
+      const response = await fetch("/api/mkt/whatsapp/start", {
         method: "POST",
         headers: AUTH_HEADERS,
         body: JSON.stringify({ sessionName: WAHA_SESSION_NAME }),
       });
-      const data = await readApiJson<{ dryRun?: boolean }>(res);
-      setIsDryRun(!!data.dryRun);
+      await readApiJson(response);
       await fetchWahaStatus();
-    } catch (err: unknown) {
-      setActionError(getErrorMessage(err));
+    } catch (error) {
+      setActionError(getErrorMessage(error));
     } finally {
-      setLoadingStart(false);
+      setConnectionLoading(null);
     }
   };
 
   const fetchQrCode = async () => {
-    setLoadingQr(true);
+    setConnectionLoading("qr");
     setActionError(null);
-    setQrMessage(null);
     try {
-      const res = await fetch("/api/mkt/whatsapp/qr", {
-        headers: AUTH_HEADERS,
-      });
-      const data = await readApiJson<{
-        qr?: string | null;
-        status?: string | null;
-        message?: string | null;
-      }>(res);
-      setWahaRawStatus(data.status ?? wahaRawStatus);
-      if (data.qr) {
-        setQrCode(data.qr);
-        setWahaStatus("qr_required");
-      } else {
-        setQrCode(null);
-        setQrMessage(data.message || "QR no disponible todavía. Inicia la sesión o intenta refrescar en unos segundos.");
-        setWahaStatus(statusToUiStatus(data.status));
-      }
-    } catch (err: unknown) {
-      const message = getErrorMessage(err);
-      setQrCode(null);
-      setQrMessage(message);
-      setActionError(message);
+      const response = await fetch("/api/mkt/whatsapp/qr", { headers: AUTH_HEADERS });
+      const data = await readApiJson<{ qr?: string | null; status?: string | null; message?: string | null }>(response);
+      setWahaRawStatus(data.status ?? null);
+      setQrCode(data.qr ?? null);
+      setQrMessage(data.message ?? null);
+      setWahaStatus(statusToUiStatus(data.status));
+    } catch (error) {
+      setActionError(getErrorMessage(error));
     } finally {
-      setLoadingQr(false);
+      setConnectionLoading(null);
+    }
+  };
+
+  const fetchWahaDebug = async () => {
+    setConnectionLoading("debug");
+    setActionError(null);
+    try {
+      const response = await fetch("/api/mkt/whatsapp/debug", { headers: AUTH_HEADERS });
+      const data = await readApiJson<WahaDebugState>(response);
+      setWahaDebug(data);
+      setWahaRawStatus(data.status);
+      setWahaStatus(data.canReachWaha ? statusToUiStatus(data.status) : "error");
+    } catch (error) {
+      setActionError(getErrorMessage(error));
+    } finally {
+      setConnectionLoading(null);
     }
   };
 
   const logoutSession = async () => {
-    setLoadingLogout(true);
+    setConnectionLoading("logout");
     setActionError(null);
-    setQrCode(null);
-    setQrMessage(null);
     try {
-      const res = await fetch("/api/mkt/whatsapp/logout", {
+      const response = await fetch("/api/mkt/whatsapp/logout", {
         method: "POST",
         headers: AUTH_HEADERS,
         body: JSON.stringify({ sessionName: WAHA_SESSION_NAME }),
       });
-      const data = await readApiJson<{ dryRun?: boolean; status?: string | null }>(res);
-      setIsDryRun(!!data.dryRun);
-      setWahaRawStatus(data.status ?? null);
-      setWahaStatus(statusToUiStatus(data.status));
-      await fetchWahaDebug();
-    } catch (err: unknown) {
-      setActionError(getErrorMessage(err));
+      await readApiJson(response);
+      setQrCode(null);
+      await fetchWahaStatus();
+    } catch (error) {
+      setActionError(getErrorMessage(error));
     } finally {
-      setLoadingLogout(false);
+      setConnectionLoading(null);
     }
   };
 
+  const handleImageChange = (file?: File) => {
+    setActionError(null);
+    if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setActionError("La imagen debe ser JPG, PNG o WebP.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setActionError("La imagen no puede pesar más de 5 MB.");
+      return;
+    }
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const removeImage = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const insertVariable = (variable: "{{nombre}}" | "{{alumno}}") => {
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? message.length;
+    const end = textarea?.selectionEnd ?? message.length;
+    const nextMessage = `${message.slice(0, start)}${variable}${message.slice(end)}`;
+    setMessage(nextMessage);
+    requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(start + variable.length, start + variable.length);
+    });
+  };
+
   const handleCreateCampaign = async () => {
+    const cleanName = name.trim();
+    const cleanMessage = message.trim();
+    const messageLimit = imageFile ? 1024 : 4096;
+    if (!cleanName) return setActionError("Ponle un nombre a la campaña.");
+    if (!cleanMessage) return setActionError("Escribe el mensaje que quieres enviar.");
+    if (cleanMessage.length > messageLimit) {
+      return setActionError(`El mensaje supera el límite de ${messageLimit} caracteres.`);
+    }
+
     setCreatingCampaign(true);
     setActionError(null);
+    setNotice(null);
     try {
-      const res = await fetch("/api/mkt/campaigns/mothers-day", {
+      let imageStorageId: Id<"_storage"> | undefined;
+      if (imageFile) {
+        const uploadUrl = await generateUploadUrl();
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": imageFile.type },
+          body: imageFile,
+        });
+        const uploadData = await readApiJson<{ storageId: Id<"_storage"> }>(uploadResponse);
+        imageStorageId = uploadData.storageId;
+      }
+
+      const response = await fetch("/api/mkt/campaigns", {
         method: "POST",
         headers: AUTH_HEADERS,
-        body: JSON.stringify({ segment }),
+        body: JSON.stringify({
+          name: cleanName,
+          segment,
+          messageTemplate: cleanMessage,
+          imageStorageId,
+          imageMimeType: imageFile?.type,
+          imageFileName: imageFile?.name,
+        }),
       });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setBatchSummary(null);
-      alert(`Campaña creada. Se prepararon ${data.preparedCount} mensajes en cola.`);
-    } catch (err: unknown) {
-      setActionError(`Error al crear campaña: ${getErrorMessage(err)}`);
+      const data = await readApiJson<{
+        campaignId: Id<"marketingCampaigns">;
+        preparedCount: number;
+      }>(response);
+      setSelectedCampaignId(data.campaignId);
+      setView("history");
+      setNotice(
+        data.preparedCount > 0
+          ? `Campaña preparada para ${data.preparedCount} contactos.`
+          : "La campaña se guardó, pero no encontramos teléfonos válidos en ese segmento."
+      );
+      setName("");
+      setMessage("Hola {{nombre}} 💙\n\n");
+      removeImage();
+    } catch (error) {
+      setActionError(getErrorMessage(error));
     } finally {
       setCreatingCampaign(false);
     }
   };
 
   const handleSendTest = async () => {
-    if (!testPhone.trim()) {
-      alert("Por favor ingresa un número de teléfono de prueba.");
+    if (!selectedCampaignId || !testPhone.trim()) {
+      setActionError("Ingresa un teléfono para enviar la prueba.");
+      return;
+    }
+    if (wahaStatus !== "connected") {
+      setActionError("Conecta WhatsApp antes de enviar una prueba.");
       return;
     }
     setSendingTest(true);
     setActionError(null);
     try {
-      const res = await fetch("/api/mkt/send-test", {
+      const response = await fetch("/api/mkt/send-test", {
         method: "POST",
         headers: AUTH_HEADERS,
         body: JSON.stringify({
+          campaignId: selectedCampaignId,
           phone: testPhone,
-          program: segment === "all" ? "natacion" : segment,
-          studentName: testStudentName,
-          recipientName: testRecipientName,
           sessionName: WAHA_SESSION_NAME,
         }),
       });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Error desconocido");
-      }
-      alert("Mensaje de prueba enviado con éxito.");
-    } catch (err: unknown) {
-      setActionError(`Error al enviar prueba: ${getErrorMessage(err)}`);
+      await readApiJson(response);
+      setNotice("Prueba enviada con el primer mensaje personalizado de la campaña.");
+    } catch (error) {
+      setActionError(getErrorMessage(error));
     } finally {
       setSendingTest(false);
     }
   };
 
-  const handleSendBatch = async (limit: number) => {
-    if (!latestCampaign) return;
+  const handleBatch = async (target: number) => {
+    if (!selectedCampaignId || !selectedCampaign) return;
     if (wahaStatus !== "connected") {
-      alert("Debes conectar WhatsApp primero.");
+      setActionError("Conecta WhatsApp antes de iniciar la tanda.");
       return;
     }
+    stopBatchRef.current = false;
     setSendingBatch(true);
     setActionError(null);
-    setBatchSummary(null);
+    setNotice(null);
+    let sent = 0;
+    let failed = 0;
+    let remaining = totals.pending;
+    setBatchProgress({ target, completed: 0, sent, failed, remaining, waitingSeconds: 0 });
+
     try {
-      const res = await fetch("/api/mkt/send-batch", {
-        method: "POST",
-        headers: AUTH_HEADERS,
-        body: JSON.stringify({
-          campaignId: latestCampaign._id,
-          limit,
-          sessionName: WAHA_SESSION_NAME,
-        }),
-      });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Error desconocido");
+      for (let index = 0; index < target && remaining > 0; index++) {
+        if (stopBatchRef.current) break;
+        const response = await fetch("/api/mkt/send-batch", {
+          method: "POST",
+          headers: AUTH_HEADERS,
+          body: JSON.stringify({
+            campaignId: selectedCampaignId,
+            limit: 1,
+            sessionName: WAHA_SESSION_NAME,
+          }),
+        });
+        const data = await readApiJson<{
+          summary: { attempted: number; sent: number; failed: number; remaining: number };
+        }>(response);
+        if (data.summary.attempted === 0) break;
+        sent += data.summary.sent;
+        failed += data.summary.failed;
+        remaining = data.summary.remaining;
+        const completed = index + 1;
+        setBatchProgress({ target, completed, sent, failed, remaining, waitingSeconds: 0 });
+
+        if (completed < target && remaining > 0 && !stopBatchRef.current) {
+          const delaySeconds = isDryRun ? 0 : Math.floor(Math.random() * 36) + 25;
+          for (let second = delaySeconds; second > 0; second--) {
+            if (stopBatchRef.current) break;
+            setBatchProgress({ target, completed, sent, failed, remaining, waitingSeconds: second });
+            await sleep(1000);
+          }
+        }
       }
-      const data = await res.json();
-      if (data.success) {
-        setBatchSummary(data.summary);
-      }
-    } catch (err: unknown) {
-      setActionError(`Error al enviar tanda: ${getErrorMessage(err)}`);
+      setNotice(stopBatchRef.current ? "La tanda se detuvo de forma segura." : `Tanda terminada: ${sent} enviados, ${failed} errores.`);
+    } catch (error) {
+      setActionError(getErrorMessage(error));
     } finally {
       setSendingBatch(false);
+      setBatchProgress((current) => current ? { ...current, waitingSeconds: 0 } : null);
     }
   };
 
   const handlePauseResumeCampaign = async (paused: boolean) => {
-    if (!latestCampaign) return;
+    if (!selectedCampaignId) return;
+    stopBatchRef.current = true;
     setPausingCampaign(true);
     setActionError(null);
     try {
-      const res = await fetch("/api/mkt/campaigns/pause", {
+      const response = await fetch("/api/mkt/campaigns/pause", {
         method: "POST",
         headers: AUTH_HEADERS,
-        body: JSON.stringify({
-          campaignId: latestCampaign._id,
-          paused,
-        }),
+        body: JSON.stringify({ campaignId: selectedCampaignId, paused }),
       });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Error al cambiar estado");
-      }
-    } catch (err: unknown) {
-      setActionError(`Error al pausar/reanudar campaña: ${getErrorMessage(err)}`);
+      await readApiJson(response);
+      setNotice(paused ? "Campaña pausada." : "Campaña lista para continuar.");
+    } catch (error) {
+      setActionError(getErrorMessage(error));
     } finally {
       setPausingCampaign(false);
     }
   };
 
-  const getBadgeVariant = (status: string): BadgeVariant => {
-    switch (status) {
-      case "draft": return "pending";
-      case "ready": return "active";
-      case "sending": return "active";
-      case "paused": return "suspended";
-      case "done": return "paid";
-      case "error": return "overdue";
-      default: return "withdrawn";
-    }
+  const openCampaign = (campaignId: Id<"marketingCampaigns">) => {
+    stopBatchRef.current = true;
+    setSelectedCampaignId(campaignId);
+    setView("history");
+    setActionError(null);
+    setNotice(null);
   };
 
-  const getBadgeLabel = (status: string): string => {
-    switch (status) {
-      case "draft": return "Borrador";
-      case "ready": return "Lista";
-      case "sending": return "Enviando";
-      case "paused": return "Pausada";
-      case "done": return "Completada";
-      case "error": return "Error";
-      default: return status;
-    }
-  };
-
-  // Preview messages copy helpers
-  const natPreviewText = `Hola 💙\n\nDe parte de Mística Natación & Aquagym queremos enviar un saludo especial por el Día de la Madre.\n\nGracias por acompañar el proceso de Jorge Zaid Zeballos con tanto amor, constancia y confianza. Para nosotros es muy especial ver cómo cada alumno crece, aprende y gana seguridad en el agua 🌊\n\nCon cariño,\nEquipo Mística`;
-  const aquaPreviewText = `Hola Mabel Hiza 💙\n\nEn Mística Natación & Aquagym queremos enviarte un saludo especial por el Día de la Madre.\n\nGracias por ser parte de nuestra comunidad y por compartir con nosotras momentos de salud, movimiento, bienestar y alegría en el agua 🌊\n\nCon cariño,\nEquipo Mística`;
-
-  // Calculated totals for campaign
-  const totals = messages ? {
-    pending: messages.filter((m) => m.status === "pending").length,
-    sent: messages.filter((m) => m.status === "sent").length,
-    error: messages.filter((m) => m.status === "error").length,
-    skipped: messages.filter((m) => m.status === "skipped").length,
-    total: messages.length,
-  } : { pending: 0, sent: 0, error: 0, skipped: 0, total: 0 };
+  const messageLimit = imageFile ? 1024 : 4096;
+  const previewMessage = renderPreview(message);
 
   return (
-    <div style={{ fontFamily: "var(--font)", background: "var(--surface)", minHeight: "100vh" }}>
-      <PageHeader
-        title="Campañas WhatsApp"
-        subtitle="Envía mensajes controlados por el Día de la Madre."
-        back={true}
-      />
+    <div className={styles.page}>
+      <header className={styles.hero}>
+        <button className={styles.backButton} onClick={() => window.history.back()} aria-label="Volver">
+          <ArrowLeft size={19} />
+        </button>
+        <div className={styles.heroCopy}>
+          <span className={styles.eyebrow}>Mística comunica</span>
+          <h1>Campañas<br /><em>con intención.</em></h1>
+        </div>
+        <div className={styles.heroBubble} aria-hidden="true"><MessageCircle size={25} /></div>
+      </header>
 
-      <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
-        {actionError && (
-          <div style={{
-            background: "#FEE2E2", color: "#B91C1C", border: "1.5px solid #FCA5A5",
-            borderRadius: 12, padding: "12px 16px", fontSize: 13, fontWeight: 600
-          }}>
-            ⚠️ {actionError}
-          </div>
-        )}
-
-        {isDryRun && (
-          <div style={{
-            background: "#EFF6FF", color: "#1E40AF", border: "1.5px solid #93C5FD",
-            borderRadius: 12, padding: "12px 16px", fontSize: 13, fontWeight: 700,
-            display: "flex", alignItems: "center", gap: 8
-          }}>
-            ⚙️ MODO SIMULACIÓN (DRY RUN) - El envío real a través de WhatsApp está desactivado. Las operaciones simulan el flujo exitoso.
-          </div>
-        )}
-
-        {/* SECTION 1: WhatsApp Connection Card */}
-        <Card padding="20px">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>Conexión WhatsApp</div>
-            <div>
-              {wahaStatus === "connected" && <Badge variant="active" label="Conectado" />}
-              {wahaStatus === "qr_required" && <Badge variant="suspended" label="Escanear QR" />}
-              {wahaStatus === "disconnected" && <Badge variant="withdrawn" label="Desconectado" />}
-              {wahaStatus === "error" && <Badge variant="withdrawn" label="Error Servidor" />}
-              {wahaStatus === "loading" && <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>Cargando...</span>}
+      <main className={styles.content}>
+        <details className={styles.connectionCard}>
+          <summary>
+            <span className={`${styles.connectionIcon} ${styles[wahaStatus]}`}>
+              {wahaStatus === "connected" ? <Wifi size={18} /> : <WifiOff size={18} />}
+            </span>
+            <span className={styles.connectionCopy}>
+              <strong>{wahaStatus === "connected" ? "WhatsApp conectado" : "Conexión de WhatsApp"}</strong>
+              <small>{isDryRun ? "Modo simulación activo" : wahaRawStatus || "Toca para revisar"}</small>
+            </span>
+            <span className={`${styles.connectionStatus} ${styles[wahaStatus]}`}>
+              {wahaStatus === "connected" ? "Listo" : wahaStatus === "loading" ? "Revisando" : "Atención"}
+            </span>
+            <ChevronDown className={styles.chevron} size={18} />
+          </summary>
+          <div className={styles.connectionBody}>
+            <p>Vincula la línea que enviará las campañas. No cierres esa sesión durante una tanda.</p>
+            <div className={styles.connectionActions}>
+              <button onClick={fetchWahaStatus} disabled={Boolean(connectionLoading)}><RefreshCw size={15} /> Revisar</button>
+              <button onClick={startSession} disabled={Boolean(connectionLoading)}><Play size={15} /> Iniciar</button>
+              <button onClick={fetchQrCode} disabled={Boolean(connectionLoading)}><Smartphone size={15} /> Ver QR</button>
+              <button onClick={fetchWahaDebug} disabled={Boolean(connectionLoading)}>Diagnóstico</button>
+              <button className={styles.dangerText} onClick={logoutSession} disabled={Boolean(connectionLoading)}>Cerrar sesión</button>
             </div>
-          </div>
-
-          <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5, margin: "0 0 16px" }}>
-            Vincular una línea telefónica a través del escaneo de código QR para habilitar el envío automatizado de mensajes WhatsApp.
-          </p>
-
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: 8, marginBottom: 16, fontSize: 12
-          }}>
-            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "8px 10px" }}>
-              <div style={{ color: "var(--text-secondary)", fontWeight: 600 }}>Conexión</div>
-              <div style={{ color: "var(--text-primary)", fontWeight: 800 }}>
-                {wahaDebug ? (wahaDebug.canReachWaha ? "Alcanzable" : "Sin conexión") : (wahaStatus === "loading" ? "Revisando" : "No verificado")}
-              </div>
-            </div>
-            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "8px 10px" }}>
-              <div style={{ color: "var(--text-secondary)", fontWeight: 600 }}>Sesión</div>
-              <div style={{ color: "var(--text-primary)", fontWeight: 800 }}>
-                {WAHA_SESSION_NAME} · {wahaRawStatus || "Sin estado"}
-              </div>
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-            <Button variant="outline" onClick={fetchWahaStatus} loading={loadingStatus} size="sm">
-              Revisar conexión
-            </Button>
-            <Button variant="brand" onClick={startSession} loading={loadingStart} size="sm">
-              Iniciar sesión
-            </Button>
-            <Button variant="outline" onClick={fetchQrCode} loading={loadingQr} size="sm">
-              Actualizar QR
-            </Button>
-            <Button variant="outline" onClick={fetchWahaDebug} loading={loadingStatus} size="sm">
-              Diagnóstico
-            </Button>
-            <Button variant="danger" onClick={logoutSession} loading={loadingLogout} size="sm">
-              Cerrar sesión
-            </Button>
-          </div>
-
-          {wahaDebug?.lastError && (
-            <div style={{
-              background: "#FFF7ED", color: "#9A3412", border: "1.5px solid #FDBA74",
-              borderRadius: 12, padding: "10px 12px", fontSize: 12, fontWeight: 600,
-              marginBottom: 14, lineHeight: 1.4
-            }}>
-              {wahaDebug.lastError}
-            </div>
-          )}
-
-          {loadingQr && (
-            <div style={{
-              background: "var(--surface)", color: "var(--text-secondary)",
-              border: "1.5px solid var(--border)", borderRadius: 12,
-              padding: "12px 14px", fontSize: 13, fontWeight: 600, marginBottom: 14
-            }}>
-              Cargando código QR...
-            </div>
-          )}
-
-          {qrMessage && !qrCode && (
-            <div style={{
-              background: "#EFF6FF", color: "#1E40AF", border: "1.5px solid #93C5FD",
-              borderRadius: 12, padding: "10px 12px", fontSize: 12, fontWeight: 600,
-              marginBottom: 14, lineHeight: 1.4
-            }}>
-              {qrMessage}
-            </div>
-          )}
-
-          {/* QR Render wrapper */}
-          {wahaStatus === "qr_required" && qrCode && (
-            <div style={{
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
-              padding: 20, background: "var(--white)", borderRadius: 16,
-              border: "1.5px solid var(--border)", margin: "16px 0"
-            }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>
-                Abre WhatsApp &gt; Dispositivos vinculados &gt; Vincular dispositivo:
-              </span>
-              <img src={qrCode} alt="WhatsApp QR Code" style={{ width: 200, height: 200, display: "block" }} />
-            </div>
-          )}
-
-          {/* Warning banner */}
-          <div style={{
-            background: "rgba(245, 158, 11, 0.08)", color: "#D97706",
-            borderRadius: 12, padding: "10px 14px", fontSize: 12,
-            fontWeight: 500, lineHeight: 1.4, display: "flex", gap: 8
-          }}>
-            <span>⚠️</span>
-            <span>No cierres la sesión de WhatsApp en tu celular mientras se realizan los envíos.</span>
-          </div>
-        </Card>
-
-        {/* SECTION 2: Campaign Builder Card */}
-        <Card padding="20px">
-          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 16 }}>
-            Creador de Campaña (Día de la Madre)
-          </div>
-
-          <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 8 }}>
-            Segmento objetivo
-          </label>
-          <div style={{ marginBottom: 16 }}>
-            <SegmentedControl
-              options={[
-                { value: "natacion", label: "Natación" },
-                { value: "aquagym", label: "Aquagym" },
-                { value: "all", label: "Todos" },
-              ]}
-              value={segment}
-              onChange={(v) => setSegment(v as "natacion" | "aquagym" | "all")}
-              fullWidth={true}
-            />
-          </div>
-
-          {/* Message Preview wrapper */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 8 }}>
-              Vista previa del mensaje
-            </label>
-            <div style={{
-              background: "#E4F2E6", borderRadius: 14, padding: 14,
-              border: "1px solid #C5E3CA", fontFamily: "var(--font)",
-              fontSize: 13, color: "#1A251C", whiteSpace: "pre-wrap",
-              lineHeight: 1.4, position: "relative",
-              boxShadow: "rgba(0,0,0,0.03) 0px 1px 3px"
-            }}>
-              <div style={{
-                position: "absolute", left: -6, top: 12, width: 0, height: 0,
-                borderStyle: "solid", borderWidth: "6px 8px 6px 0",
-                borderColor: "transparent #E4F2E6 transparent transparent"
-              }} />
-              {segment === "natacion" && natPreviewText}
-              {segment === "aquagym" && aquaPreviewText}
-              {segment === "all" && (
-                <>
-                  <strong style={{ display: "block", color: "#0B84C7", marginBottom: 6, fontSize: 11 }}>
-                    [Vista previa: Natación]
-                  </strong>
-                  {natPreviewText}
-                  <div style={{ height: 1, background: "rgba(0,0,0,0.08)", margin: "14px 0" }} />
-                  <strong style={{ display: "block", color: "#0B84C7", marginBottom: 6, fontSize: 11 }}>
-                    [Vista previa: Aquagym]
-                  </strong>
-                  {aquaPreviewText}
-                </>
-              )}
-            </div>
-          </div>
-
-          <Button
-            variant="primary"
-            onClick={handleCreateCampaign}
-            loading={creatingCampaign}
-            fullWidth={true}
-          >
-            Configurar y Preparar Campaña
-          </Button>
-        </Card>
-
-        {/* SECTION 3: Campaign Details & Dispatch */}
-        {latestCampaign ? (
-          <Card padding="20px">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>Campaña Activa</div>
-                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{latestCampaign.name}</div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <Badge variant={getBadgeVariant(latestCampaign.status)} label={getBadgeLabel(latestCampaign.status)} size="sm" />
-                {(latestCampaign.status === "ready" || latestCampaign.status === "sending") && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePauseResumeCampaign(true)}
-                    loading={pausingCampaign}
-                  >
-                    Pausar
-                  </Button>
-                )}
-                {latestCampaign.status === "paused" && (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => handlePauseResumeCampaign(false)}
-                    loading={pausingCampaign}
-                  >
-                    Reanudar
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Premium Stat cards */}
-            <div style={{
-              display: "grid", gridTemplateColumns: "repeat(2, 1fr)",
-              gap: 10, marginBottom: 20
-            }}>
-              <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 12px", textAlign: "center" }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>{totals.pending}</div>
-                <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>En cola (Pendientes)</div>
-              </div>
-              <div style={{ background: "#ECFDF5", border: "1px solid #D1FAE5", borderRadius: 12, padding: "10px 12px", textAlign: "center" }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#065F46" }}>{totals.sent}</div>
-                <div style={{ fontSize: 11, color: "#047857", marginTop: 2 }}>Enviados</div>
-              </div>
-              <div style={{ background: "#FEF2F2", border: "1px solid #FEE2E2", borderRadius: 12, padding: "10px 12px", textAlign: "center" }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#991B1B" }}>{totals.error}</div>
-                <div style={{ fontSize: 11, color: "#B91C1C", marginTop: 2 }}>Errores / Fallidos</div>
-              </div>
-              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 12px", textAlign: "center" }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-secondary)" }}>{totals.total}</div>
-                <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>Total destinatarios</div>
-              </div>
-            </div>
-
-            {/* Batch summary logs */}
-            {batchSummary && (
-              <div style={{
-                background: "#F0FDF4", border: "1.5px solid #BBF7D0",
-                borderRadius: 12, padding: "12px 16px", marginBottom: 20,
-                fontSize: 13, color: "#166534"
-              }}>
-                <strong style={{ display: "block", marginBottom: 4 }}>Resumen de envío de tanda completado:</strong>
-                <div>Intentados: {batchSummary.attempted} · Enviados: {batchSummary.sent} · Errores: {batchSummary.failed}</div>
-                <div style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>Mensajes restantes en cola: {batchSummary.remaining}</div>
+            {connectionLoading && <div className={styles.inlineLoading}><LoaderCircle size={15} /> Procesando…</div>}
+            {qrCode && (
+              <div className={styles.qrPanel}>
+                <img src={qrCode} alt="Código QR para vincular WhatsApp" />
+                <span>WhatsApp › Dispositivos vinculados › Vincular dispositivo</span>
               </div>
             )}
-
-            {/* TEST SEND BLOCK */}
-            <div style={{
-              border: "1.5px solid var(--border)", borderRadius: 14,
-              padding: 14, marginBottom: 20, background: "var(--white)"
-            }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 12 }}>Enviar Prueba de WhatsApp</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <Input
-                  label="Número de prueba (con código de país, ej. 59171234567)"
-                  value={testPhone}
-                  onChange={(e) => setTestPhone(e.target.value)}
-                  placeholder="Ej: 59171234567"
-                  type="tel"
-                />
-                {segment === "natacion" && (
-                  <Input
-                    label="Nombre Alumno (muestra)"
-                    value={testStudentName}
-                    onChange={(e) => setTestStudentName(e.target.value)}
-                  />
-                )}
-                {segment === "aquagym" && (
-                  <Input
-                    label="Nombre Recipiente (muestra)"
-                    value={testRecipientName}
-                    onChange={(e) => setTestRecipientName(e.target.value)}
-                  />
-                )}
-                <Button
-                  variant="outline"
-                  onClick={handleSendTest}
-                  loading={sendingTest}
-                  disabled={sendingBatch}
-                  size="sm"
-                >
-                  🚀 Enviar mensaje de prueba
-                </Button>
+            {qrMessage && <p className={styles.connectionNote}>{qrMessage}</p>}
+            {wahaDebug && (
+              <div className={styles.debugGrid}>
+                <span><small>Servidor</small><strong>{wahaDebug.canReachWaha ? "Disponible" : "Sin respuesta"}</strong></span>
+                <span><small>Sesión</small><strong>{wahaDebug.sessionName}</strong></span>
               </div>
-            </div>
+            )}
+          </div>
+        </details>
 
-            {/* BATCH SEND ACTION BLOCK */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>Despacho en Tandas</div>
-              <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5, margin: "0 0 12px" }}>
-                Recomendamos realizar envíos en tandas pequeñas. Los mensajes se envían con una pausa humana aleatoria de 25-60 segundos entre cada uno para proteger la línea contra bloqueos.
-              </p>
-              
-              <div style={{ display: "flex", gap: 10 }}>
-                <Button
-                  variant="brand"
-                  onClick={() => handleSendBatch(10)}
-                  loading={sendingBatch}
-                  disabled={sendingTest || totals.pending === 0 || latestCampaign.status === "paused"}
-                  style={{ flex: 1 }}
-                >
-                  Enviar 10 mensajes
-                </Button>
-                <Button
-                  variant="brand"
-                  onClick={() => handleSendBatch(25)}
-                  loading={sendingBatch}
-                  disabled={sendingTest || totals.pending === 0 || latestCampaign.status === "paused"}
-                  style={{ flex: 1 }}
-                >
-                  Enviar 25 mensajes
-                </Button>
-              </div>
-            </div>
+        <nav className={styles.viewTabs} aria-label="Secciones de campañas">
+          <button className={view === "compose" ? styles.activeTab : ""} onClick={() => { setView("compose"); setSelectedCampaignId(null); }}>
+            <ImagePlus size={17} /> Nueva campaña
+          </button>
+          <button className={view === "history" ? styles.activeTab : ""} onClick={() => { setView("history"); setSelectedCampaignId(null); }}>
+            <History size={17} /> Historial
+            {campaigns && campaigns.length > 0 && <span>{campaigns.length}</span>}
+          </button>
+        </nav>
 
-            {/* RECIPIENTS MESSAGE LIST TABLE */}
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 12 }}>
-                Destinatarios ({totals.total})
-              </div>
-              <div style={{
-                maxHeight: 280, overflowY: "auto", border: "1.5px solid var(--border)",
-                borderRadius: 12, background: "var(--white)"
-              }}>
-                {messages && messages.length > 0 ? (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}>
-                    <thead>
-                      <tr style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-                        <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-secondary)" }}>Nombre</th>
-                        <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-secondary)" }}>Teléfono</th>
-                        <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-secondary)" }}>Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {messages.map((m) => {
-                        let statusColor = "var(--text-secondary)";
-                        let statusLabel: string = m.status;
-                        if (m.status === "sent") { statusColor = "var(--paid-green)"; statusLabel = "Enviado"; }
-                        else if (m.status === "pending") { statusColor = "var(--pending-amber)"; statusLabel = "En cola"; }
-                        else if (m.status === "sending") { statusColor = "var(--pool-blue)"; statusLabel = "Enviando"; }
-                        else if (m.status === "error") { statusColor = "var(--overdue-coral)"; statusLabel = "Error"; }
-                        else if (m.status === "skipped") { statusColor = "gray"; statusLabel = "Omitido"; }
-
-                        return (
-                          <tr key={m._id} style={{ borderBottom: "1px solid var(--border)" }}>
-                            <td style={{ padding: "10px 12px" }}>
-                              <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{m.recipientName || "—"}</div>
-                              {m.studentName && m.recipientName !== m.studentName && (
-                                <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2 }}>
-                                  Alumno: {m.studentName}
-                                </div>
-                              )}
-                            </td>
-                            <td style={{ padding: "10px 12px", color: "var(--text-secondary)", fontFamily: "monospace" }}>
-                              {maskPhone(m.normalizedPhone)}
-                            </td>
-                            <td style={{ padding: "10px 12px" }}>
-                              <span style={{ fontWeight: 700, color: statusColor }}>{statusLabel}</span>
-                              {m.error && (
-                                <div style={{ fontSize: 10, color: "var(--overdue-coral)", marginTop: 2, wordBreak: "break-all" }}>
-                                  {m.error}
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div style={{ padding: "32px 16px", textDecoration: "none", color: "var(--text-secondary)", textAlign: "center" }}>
-                    Cargando destinatarios...
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-        ) : (
-          <Card padding="32px 16px" style={{ textAlign: "center" }}>
-            <span style={{ fontSize: 32, display: "block", marginBottom: 8 }}>📣</span>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>Sin campaña configurada</div>
-            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>
-              Configura y crea una campaña arriba para empezar a preparar destinatarios.
-            </div>
-          </Card>
+        {actionError && (
+          <div className={styles.alertError} role="alert">
+            <AlertTriangle size={18} /><span>{actionError}</span><button onClick={() => setActionError(null)} aria-label="Cerrar"><X size={16} /></button>
+          </div>
         )}
-      </div>
+        {notice && (
+          <div className={styles.alertSuccess} role="status">
+            <Check size={18} /><span>{notice}</span><button onClick={() => setNotice(null)} aria-label="Cerrar"><X size={16} /></button>
+          </div>
+        )}
+
+        {view === "compose" ? (
+          <>
+            <details className={styles.guideCard} open>
+              <summary>
+                <span className={styles.guideIcon}><MessageCircle size={19} /></span>
+                <span className={styles.guideTitle}>
+                  <strong>Cómo enviar una campaña</strong>
+                  <small>6 pasos fáciles · nada se envía sin tu confirmación</small>
+                </span>
+                <ChevronDown className={styles.chevron} size={18} />
+              </summary>
+              <ol className={styles.guideSteps}>
+                <li>
+                  <span>1</span>
+                  <div><strong>Conecta WhatsApp</strong><p>Abre “Conexión de WhatsApp” arriba y confirma que diga <em>Listo</em>.</p></div>
+                </li>
+                <li>
+                  <span>2</span>
+                  <div><strong>Elige a quién escribirle</strong><p>Ponle un nombre a la campaña y selecciona Natación, Aquagym o toda la comunidad.</p></div>
+                </li>
+                <li>
+                  <span>3</span>
+                  <div>
+                    <strong>Escribe y personaliza el mensaje</strong>
+                    <p>Usa las variables para que cada persona reciba su mensaje con los nombres correctos.</p>
+                    <div className={styles.variableGuide}>
+                      <span><code>{"{{nombre}}"}</code><small>Quien recibe el mensaje. En Natación suele ser el representante.</small></span>
+                      <span><code>{"{{alumno}}"}</code><small>El alumno o los alumnos relacionados con ese teléfono.</small></span>
+                    </div>
+                    <p className={styles.guideExample}><b>Ejemplo:</b> “Hola {"{{nombre}}"}, invitamos a {"{{alumno}}"}” se convierte en “Hola Marta, invitamos a Ana y Luis”. En Aquagym, ambos nombres normalmente son iguales.</p>
+                  </div>
+                </li>
+                <li>
+                  <span>4</span>
+                  <div><strong>Revisa cómo llegará</strong><p>Mira la vista previa y, si quieres, adjunta una imagen de hasta 5 MB.</p></div>
+                </li>
+                <li>
+                  <span>5</span>
+                  <div><strong>Prepara y prueba</strong><p>Toca “Preparar campaña” y envía primero una prueba a tu propio teléfono.</p></div>
+                </li>
+                <li>
+                  <span>6</span>
+                  <div><strong>Envía por tandas</strong><p>Cuando la prueba esté bien, envía 10 o 25 mensajes y sigue el progreso.</p></div>
+                </li>
+              </ol>
+            </details>
+
+            <div className={styles.composeStack}>
+            <section className={styles.formCard}>
+              <div className={styles.sectionHeading}>
+                <span>01</span>
+                <div><h2>La idea</h2><p>Dale un nombre y elige a quién quieres hablarle.</p></div>
+              </div>
+              <label className={styles.field}>
+                <span>Nombre de la campaña</span>
+                <input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="Ej. Vacaciones de invierno" />
+                <small>{name.length}/80</small>
+              </label>
+              <fieldset className={styles.segmentField}>
+                <legend>Destinatarios</legend>
+                <div>
+                  {(["natacion", "aquagym", "all"] as Segment[]).map((option) => (
+                    <button key={option} type="button" className={segment === option ? styles.segmentActive : ""} onClick={() => setSegment(option)}>
+                      {segmentLabel(option)}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            </section>
+
+            <section className={styles.formCard}>
+              <div className={styles.sectionHeading}>
+                <span>02</span>
+                <div><h2>El mensaje</h2><p>Personalízalo sin perder tu voz.</p></div>
+              </div>
+              <div className={styles.variableRow}>
+                <span>Insertar variable</span>
+                <button type="button" onClick={() => insertVariable("{{nombre}}")}>+ Nombre</button>
+                <button type="button" onClick={() => insertVariable("{{alumno}}")}>+ Alumno</button>
+              </div>
+              <p className={styles.variableHint}><b>Nombre</b> saluda a quien recibe · <b>Alumno</b> menciona a quien toma clases.</p>
+              <label className={styles.textareaField}>
+                <span className={styles.srOnly}>Mensaje de campaña</span>
+                <textarea ref={textareaRef} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Escribe aquí tu mensaje…" rows={8} />
+                <small className={message.length > messageLimit ? styles.counterError : ""}>{message.length}/{messageLimit}</small>
+              </label>
+
+              <div className={styles.imageField}>
+                {imagePreview ? (
+                  <div className={styles.imageSelected}>
+                    <img src={imagePreview} alt="Vista previa de la imagen seleccionada" />
+                    <div><strong>{imageFile?.name}</strong><small>{imageFile ? `${(imageFile.size / 1024 / 1024).toFixed(1)} MB` : ""}</small></div>
+                    <button type="button" onClick={removeImage} aria-label="Quitar imagen"><Trash2 size={17} /></button>
+                  </div>
+                ) : (
+                  <label className={styles.imageDrop}>
+                    <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => handleImageChange(event.target.files?.[0])} />
+                    <span><ImagePlus size={21} /></span>
+                    <div><strong>Adjuntar una imagen</strong><small>JPG, PNG o WebP · máximo 5 MB</small></div>
+                  </label>
+                )}
+              </div>
+            </section>
+
+            <section className={styles.previewCard}>
+              <div className={styles.previewTop}><span>03</span><strong>Así llegará</strong><small>Vista previa</small></div>
+              <div className={styles.phonePreview}>
+                <div className={styles.phoneTop}><ArrowLeft size={15} /><span className={styles.miniAvatar}>M</span><strong>Mística Natación</strong></div>
+                <div className={styles.chatTexture}>
+                  <div className={styles.messageBubble}>
+                    {imagePreview && <img src={imagePreview} alt="" />}
+                    <p>{previewMessage || "Tu mensaje aparecerá aquí."}</p>
+                    <time>10:42 <Check size={12} /></time>
+                  </div>
+                </div>
+              </div>
+              <button className={styles.primaryAction} onClick={handleCreateCampaign} disabled={creatingCampaign || message.length > messageLimit}>
+                {creatingCampaign ? <><LoaderCircle className={styles.spin} size={18} /> Preparando campaña…</> : <><Send size={18} /> Preparar campaña</>}
+              </button>
+              <p className={styles.actionHint}>Nada se envía todavía. Primero podrás hacer una prueba.</p>
+            </section>
+            </div>
+          </>
+        ) : selectedCampaign ? (
+          <section className={styles.detailView}>
+            <button className={styles.inlineBack} onClick={() => setSelectedCampaignId(null)}><ArrowLeft size={16} /> Volver al historial</button>
+            <div className={styles.detailHero}>
+              <div>
+                <span className={styles.detailDate}>{formatDate(selectedCampaign.createdAt)}</span>
+                <h2>{selectedCampaign.name}</h2>
+                <p>{segmentLabel(selectedCampaign.segment)}</p>
+              </div>
+              <span className={`${styles.statusPill} ${styles[`status_${selectedCampaign.status}`]}`}>{statusLabel(selectedCampaign.status)}</span>
+            </div>
+
+            <div className={styles.statsGrid}>
+              <div><strong>{totals.total}</strong><span>Contactos</span></div>
+              <div><strong>{totals.sent}</strong><span>Enviados</span></div>
+              <div><strong>{totals.pending}</strong><span>Pendientes</span></div>
+              <div className={totals.error > 0 ? styles.statError : ""}><strong>{totals.error}</strong><span>Errores</span></div>
+            </div>
+
+            <div className={styles.savedMessage}>
+              {selectedCampaign.imageUrl && <img src={selectedCampaign.imageUrl} alt={`Imagen de ${selectedCampaign.name}`} />}
+              <div><small>Mensaje guardado</small><p>{selectedCampaign.messageTemplate || messages?.[0]?.message || "Sin vista previa disponible."}</p></div>
+            </div>
+
+            {totals.total === 0 && messages && (
+              <div className={styles.emptyRecipients}><Users size={27} /><strong>No hay destinatarios válidos</strong><p>Revisa que los alumnos activos de este segmento tengan un celular registrado.</p></div>
+            )}
+
+            {totals.total > 0 && (
+              <>
+                <div className={styles.testPanel}>
+                  <div><span><Smartphone size={17} /></span><div><strong>Primero, haz una prueba</strong><small>Usaremos el primer mensaje personalizado.</small></div></div>
+                  <div className={styles.testControls}>
+                    <input type="tel" value={testPhone} onChange={(event) => setTestPhone(event.target.value)} placeholder="591 7…" aria-label="Teléfono de prueba" />
+                    <button onClick={handleSendTest} disabled={sendingTest || sendingBatch || wahaStatus !== "connected"}>
+                      {sendingTest ? <LoaderCircle className={styles.spin} size={16} /> : <Send size={16} />} Probar
+                    </button>
+                  </div>
+                </div>
+
+                <div className={styles.dispatchPanel}>
+                  <div className={styles.dispatchHeading}>
+                    <div><span className={styles.whatsappMark}><MessageCircle size={19} /></span><div><strong>Despachar campaña</strong><small>Pausas humanas de 25–60 segundos.</small></div></div>
+                    {(selectedCampaign.status === "ready" || selectedCampaign.status === "sending") && (
+                      <button className={styles.pauseButton} onClick={() => handlePauseResumeCampaign(true)} disabled={pausingCampaign}><Pause size={15} /> Pausar</button>
+                    )}
+                    {selectedCampaign.status === "paused" && (
+                      <button className={styles.pauseButton} onClick={() => handlePauseResumeCampaign(false)} disabled={pausingCampaign}><Play size={15} /> Reanudar</button>
+                    )}
+                  </div>
+
+                  {batchProgress && (
+                    <div className={styles.progressPanel}>
+                      <div><strong>{batchProgress.completed} de {batchProgress.target}</strong><span>{batchProgress.waitingSeconds > 0 ? `Siguiente envío en ${batchProgress.waitingSeconds}s` : "Procesando tanda"}</span></div>
+                      <div className={styles.progressTrack}><span style={{ width: `${Math.min(100, (batchProgress.completed / batchProgress.target) * 100)}%` }} /></div>
+                      <small>{batchProgress.sent} enviados · {batchProgress.failed} errores · {batchProgress.remaining} pendientes</small>
+                    </div>
+                  )}
+
+                  {sendingBatch ? (
+                    <button className={styles.stopAction} onClick={() => { stopBatchRef.current = true; }}><X size={17} /> Detener después de este envío</button>
+                  ) : (
+                    <div className={styles.batchActions}>
+                      <button onClick={() => handleBatch(10)} disabled={totals.pending === 0 || selectedCampaign.status === "paused" || sendingTest}><Send size={17} /> Enviar 10</button>
+                      <button onClick={() => handleBatch(25)} disabled={totals.pending === 0 || selectedCampaign.status === "paused" || sendingTest}><Send size={17} /> Enviar 25</button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className={styles.recipientSection}>
+              <div className={styles.recipientHeading}><h3>Destinatarios</h3><span>{totals.total}</span></div>
+              <div className={styles.recipientList}>
+                {!messages && <div className={styles.loadingRows}><LoaderCircle className={styles.spin} size={20} /> Cargando destinatarios…</div>}
+                {messages?.map((item) => (
+                  <div className={styles.recipientRow} key={item._id}>
+                    <span className={styles.recipientAvatar}>{(item.recipientName || "?").slice(0, 1).toUpperCase()}</span>
+                    <div><strong>{item.recipientName || "Sin nombre"}</strong><small>{maskPhone(item.normalizedPhone)}{item.studentName ? ` · ${item.studentName}` : ""}</small>{item.error && <em>{item.error}</em>}</div>
+                    <span className={`${styles.messageStatus} ${styles[`message_${item.status}`]}`}>{item.status === "sent" ? "Enviado" : item.status === "pending" ? "En cola" : item.status === "sending" ? "Enviando" : item.status === "error" ? "Error" : "Omitido"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className={styles.historyView}>
+            <div className={styles.historyIntro}><span>Archivo de campañas</span><h2>Lo enviado también<br />cuenta una historia.</h2><p>Revisa el mensaje, la imagen y el resultado de cada campaña.</p></div>
+            {!campaigns && <div className={styles.loadingRows}><LoaderCircle className={styles.spin} size={20} /> Cargando historial…</div>}
+            {campaigns?.length === 0 && (
+              <div className={styles.emptyHistory}><History size={31} /><h3>Aún no hay campañas</h3><p>La primera aparecerá aquí cuando la prepares.</p><button onClick={() => setView("compose")}>Crear una campaña</button></div>
+            )}
+            <div className={styles.campaignList}>
+              {campaigns?.map((campaign) => (
+                <button className={styles.campaignRow} key={campaign._id} onClick={() => openCampaign(campaign._id)}>
+                  <span className={styles.campaignThumb}>
+                    {campaign.imageUrl ? <img src={campaign.imageUrl} alt="" /> : <MessageCircle size={21} />}
+                  </span>
+                  <span className={styles.campaignMain}>
+                    <span className={styles.campaignMeta}>{formatDate(campaign.createdAt)} · {segmentLabel(campaign.segment)}</span>
+                    <strong>{campaign.name}</strong>
+                    <small>{campaign.counts?.sent ?? 0} enviados · {campaign.counts?.pending ?? 0} pendientes · {campaign.counts?.error ?? 0} errores</small>
+                  </span>
+                  <span className={`${styles.statusDot} ${styles[`status_${campaign.status}`]}`} title={statusLabel(campaign.status)} />
+                  <ChevronDown className={styles.rowArrow} size={17} />
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
     </div>
   );
 }

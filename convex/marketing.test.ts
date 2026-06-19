@@ -196,4 +196,63 @@ describe("marketing campaigns", () => {
     expect(campaignReset?.status).toBe("ready");
     expect(campaignReset?.finishedAt).toBeUndefined();
   });
+
+  it("creates a custom campaign, replaces variables, deduplicates phones, and exposes history counts", async () => {
+    const t = convexTest(schema);
+    const timeSlotId = await t.run((ctx) => ctx.db.insert("timeSlots", {
+      label: "LMV 4–5 pm",
+      days: ["Mon", "Wed", "Fri"],
+      startTime: "16:00",
+      endTime: "17:00",
+      isActive: true,
+      maxCapacity: 20,
+      modalities: ["lmv", "mj"],
+    }));
+
+    await t.run(async (ctx) => {
+      for (const name of ["Ana", "Luis"]) {
+        await ctx.db.insert("students", {
+          name,
+          phone: "71234567",
+          dob: "2015-05-10",
+          enrollmentDate: "2026-01-01",
+          modality: name === "Ana" ? "lmv" : "mj",
+          timeSlotId,
+          status: "active",
+          createdAt: Date.now(),
+          payerPhone: "71234567",
+          guardianName: "Marta",
+        });
+      }
+    });
+
+    const campaignId = await t.mutation(api.marketing.createMarketingCampaign, {
+      name: "Vacaciones",
+      segment: "natacion",
+      messageTemplate: "Hola {{nombre}}, invitamos a {{alumno}}.",
+    });
+    const result = await t.mutation(api.marketing.prepareMarketingRecipients, { campaignId });
+    expect(result.preparedCount).toBe(1);
+
+    const messages = await t.query(api.marketing.listCampaignMessages, { campaignId });
+    expect(messages).toHaveLength(1);
+    expect(messages[0].message).toBe("Hola Marta, invitamos a Ana y Luis.");
+
+    const campaigns = await t.query(api.marketing.listMarketingCampaigns, {});
+    expect(campaigns[0].counts).toMatchObject({ total: 1, pending: 1, sent: 0, error: 0 });
+    expect(campaigns[0].messageTemplate).toContain("{{nombre}}");
+  });
+
+  it("keeps a custom campaign as draft when its segment has no valid recipients", async () => {
+    const t = convexTest(schema);
+    const campaignId = await t.mutation(api.marketing.createMarketingCampaign, {
+      name: "Aquagym vacío",
+      segment: "aquagym",
+      messageTemplate: "Hola {{nombre}}",
+    });
+    const result = await t.mutation(api.marketing.prepareMarketingRecipients, { campaignId });
+    expect(result.preparedCount).toBe(0);
+    const campaign = await t.query(api.marketing.getMarketingCampaign, { campaignId });
+    expect(campaign?.status).toBe("draft");
+  });
 });

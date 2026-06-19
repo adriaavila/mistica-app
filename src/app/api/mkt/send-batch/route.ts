@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
 import { convex } from "@/lib/server/convex";
 import { api } from "@/../convex/_generated/api";
-import { DEFAULT_WAHA_SESSION, getSafeWahaError, resolveWahaSessionName, sendWahaText, maskPhone } from "@/lib/server/waha";
+import { DEFAULT_WAHA_SESSION, getSafeWahaError, resolveWahaSessionName, sendWahaImage, sendWahaText, maskPhone } from "@/lib/server/waha";
 import { Id } from "@/../convex/_generated/dataModel";
 
 // In-memory safety lock to prevent concurrent batch send triggers on the same campaign
@@ -106,12 +106,25 @@ export async function POST(request: Request) {
           messageId: msg._id,
         });
 
-        // Send text message through WAHA
-        await sendWahaText({
-          phone: msg.normalizedPhone,
-          message: msg.message,
-          sessionName,
-        });
+        if (campaign.imageStorageId) {
+          if (!campaign.imageUrl || !campaign.imageMimeType) {
+            throw new Error("Campaign image is unavailable.");
+          }
+          await sendWahaImage({
+            phone: msg.normalizedPhone,
+            message: msg.message,
+            imageUrl: campaign.imageUrl,
+            mimetype: campaign.imageMimeType,
+            filename: campaign.imageFileName,
+            sessionName,
+          });
+        } else {
+          await sendWahaText({
+            phone: msg.normalizedPhone,
+            message: msg.message,
+            sessionName,
+          });
+        }
 
         // Mark message as sent in Convex
         await convex.mutation(api.marketing.markMarketingMessageSent, {

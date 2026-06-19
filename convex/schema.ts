@@ -117,6 +117,10 @@ export default defineSchema({
     name: v.string(),
     type: v.string(), // e.g. mothers_day
     segment: v.union(v.literal("natacion"), v.literal("aquagym"), v.literal("all")),
+    messageTemplate: v.optional(v.string()),
+    imageStorageId: v.optional(v.id("_storage")),
+    imageMimeType: v.optional(v.string()),
+    imageFileName: v.optional(v.string()),
     status: v.union(
       v.literal("draft"),
       v.literal("ready"),

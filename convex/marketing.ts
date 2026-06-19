@@ -1,6 +1,18 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
+
+type MarketingSegment = "natacion" | "aquagym" | "all";
+type MarketingProgram = "natacion" | "aquagym";
+
+type RecipientGroup = {
+  normalizedPhone: string;
+  originalPhone: string;
+  program: MarketingProgram;
+  recipientName: string;
+  studentName: string;
+  studentId: Id<"students">;
+};
 
 // Helper: Normalize phones to international format
 export function normalizePhone(phone: string): string | null {
@@ -31,6 +43,80 @@ function getProgramFromModality(modality: string): "natacion" | "aquagym" | "unk
     return "aquagym";
   }
   return "unknown";
+}
+
+function replaceTemplateVariables(template: string, recipientName: string, studentName: string) {
+  return template
+    .replaceAll("{{nombre}}", recipientName)
+    .replaceAll("{{alumno}}", studentName || recipientName);
+}
+
+export function renderMarketingMessage(
+  template: string,
+  recipientName: string,
+  studentName: string
+) {
+  return replaceTemplateVariables(template, recipientName, studentName);
+}
+
+function buildRecipientGroups(activeStudents: Doc<"students">[], targetSegment: MarketingSegment) {
+  const groupsByPhone = new Map<string, Doc<"students">[]>();
+
+  for (const student of activeStudents) {
+    const program = getProgramFromModality(student.modality);
+    if (program === "unknown") continue;
+    if (targetSegment !== "all" && program !== targetSegment) continue;
+
+    const phone = program === "natacion"
+      ? student.payerPhone || student.guardianPhone || student.phone
+      : student.payerPhone || student.phone;
+    const normalized = normalizePhone(phone);
+    if (!normalized) continue;
+
+    const group = groupsByPhone.get(normalized) ?? [];
+    group.push(student);
+    groupsByPhone.set(normalized, group);
+  }
+
+  const recipients: RecipientGroup[] = [];
+  for (const [normalizedPhone, students] of groupsByPhone) {
+    const natacionStudents = students.filter(
+      (student) => getProgramFromModality(student.modality) === "natacion"
+    );
+    const program: MarketingProgram = natacionStudents.length > 0 ? "natacion" : "aquagym";
+    const primaryStudent = program === "natacion" ? natacionStudents[0] : students[0];
+    const originalPhone = program === "natacion"
+      ? primaryStudent.payerPhone || primaryStudent.guardianPhone || primaryStudent.phone
+      : primaryStudent.payerPhone || primaryStudent.phone;
+    const studentName = program === "natacion"
+      ? natacionStudents.map((student) => student.name).join(" y ")
+      : students.map((student) => student.name).join(" y ");
+    const recipientName = program === "natacion"
+      ? primaryStudent.guardianName || primaryStudent.name
+      : studentName;
+
+    recipients.push({
+      normalizedPhone,
+      originalPhone,
+      program,
+      recipientName,
+      studentName,
+      studentId: primaryStudent._id,
+    });
+  }
+
+  return recipients;
+}
+
+function getMessageCounts(messages: Doc<"marketingMessages">[]) {
+  return {
+    total: messages.length,
+    pending: messages.filter((message) => message.status === "pending").length,
+    sending: messages.filter((message) => message.status === "sending").length,
+    sent: messages.filter((message) => message.status === "sent").length,
+    error: messages.filter((message) => message.status === "error").length,
+    skipped: messages.filter((message) => message.status === "skipped").length,
+  };
 }
 
 // Helper: check and update campaign status based on message states
@@ -99,7 +185,21 @@ export const listMarketingCampaigns = query({
   args: {},
   handler: async (ctx) => {
     const campaigns = await ctx.db.query("marketingCampaigns").collect();
-    return campaigns.sort((a, b) => b.createdAt - a.createdAt);
+    const sortedCampaigns = campaigns.sort((a, b) => b.createdAt - a.createdAt);
+    return Promise.all(sortedCampaigns.map(async (campaign) => {
+      const messages = await ctx.db
+        .query("marketingMessages")
+        .withIndex("by_campaign", (q) => q.eq("campaignId", campaign._id))
+        .collect();
+      const imageUrl = campaign.imageStorageId
+        ? await ctx.storage.getUrl(campaign.imageStorageId)
+        : null;
+      return {
+        ...campaign,
+        imageUrl,
+        counts: getMessageCounts(messages),
+      };
+    }));
   },
 });
 
@@ -107,7 +207,92 @@ export const listMarketingCampaigns = query({
 export const getMarketingCampaign = query({
   args: { campaignId: v.id("marketingCampaigns") },
   handler: async (ctx, args) => {
-    return ctx.db.get(args.campaignId);
+    const campaign = await ctx.db.get(args.campaignId);
+    if (!campaign) return null;
+    const imageUrl = campaign.imageStorageId
+      ? await ctx.storage.getUrl(campaign.imageStorageId)
+      : null;
+    return { ...campaign, imageUrl };
+  },
+});
+
+export const generateMarketingImageUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => ctx.storage.generateUploadUrl(),
+});
+
+export const createMarketingCampaign = mutation({
+  args: {
+    name: v.string(),
+    segment: v.union(v.literal("natacion"), v.literal("aquagym"), v.literal("all")),
+    messageTemplate: v.string(),
+    imageStorageId: v.optional(v.id("_storage")),
+    imageMimeType: v.optional(v.string()),
+    imageFileName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return ctx.db.insert("marketingCampaigns", {
+      name: args.name,
+      type: "custom",
+      segment: args.segment,
+      messageTemplate: args.messageTemplate,
+      imageStorageId: args.imageStorageId,
+      imageMimeType: args.imageMimeType,
+      imageFileName: args.imageFileName,
+      status: "draft",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const prepareMarketingRecipients = mutation({
+  args: { campaignId: v.id("marketingCampaigns") },
+  handler: async (ctx, args) => {
+    const campaign = await ctx.db.get(args.campaignId);
+    if (!campaign) throw new Error("Campaign not found");
+    if (!campaign.messageTemplate) throw new Error("Campaign message is missing");
+
+    const existingMessages = await ctx.db
+      .query("marketingMessages")
+      .withIndex("by_campaign", (q) => q.eq("campaignId", args.campaignId))
+      .collect();
+    if (existingMessages.length > 0) {
+      return { preparedCount: existingMessages.length };
+    }
+
+    const activeStudents = await ctx.db
+      .query("students")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
+    const recipients = buildRecipientGroups(activeStudents, campaign.segment);
+
+    for (const recipient of recipients) {
+      await ctx.db.insert("marketingMessages", {
+        campaignId: args.campaignId,
+        studentId: recipient.studentId,
+        recipientName: recipient.recipientName,
+        studentName: recipient.studentName,
+        phone: recipient.originalPhone,
+        normalizedPhone: recipient.normalizedPhone,
+        program: recipient.program,
+        message: replaceTemplateVariables(
+          campaign.messageTemplate,
+          recipient.recipientName,
+          recipient.studentName
+        ),
+        status: "pending",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+
+    await ctx.db.patch(args.campaignId, {
+      status: recipients.length > 0 ? "ready" : "draft",
+      updatedAt: Date.now(),
+    });
+
+    return { preparedCount: recipients.length };
   },
 });
 

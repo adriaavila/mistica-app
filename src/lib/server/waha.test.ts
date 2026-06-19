@@ -10,6 +10,7 @@ import {
   getWahaStatus,
   startWahaSession,
   getWahaQr,
+  sendWahaImage,
   sendWahaText,
   logoutWahaSession,
   getWahaDebugInfo,
@@ -277,5 +278,39 @@ describe("WAHA API endpoints requests", () => {
     await expect(
       sendWahaText({ phone: "41234567", message: "Hola" })
     ).rejects.toThrow("Invalid phone number provided for sending: 4123***4567");
+  });
+
+  it("sendWahaImage should send a remote image with the message as caption", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ id: "image-123" }),
+    } as Response);
+
+    await sendWahaImage({
+      phone: "71234567",
+      message: "Hola con imagen",
+      imageUrl: "https://storage.example/campaign.jpg",
+      mimetype: "image/jpeg",
+      filename: "campaign.jpg",
+      sessionName: "default",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://waha-test.io/api/sendImage",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          chatId: "59171234567@c.us",
+          file: {
+            url: "https://storage.example/campaign.jpg",
+            mimetype: "image/jpeg",
+            filename: "campaign.jpg",
+          },
+          caption: "Hola con imagen",
+          session: "default",
+        }),
+      })
+    );
   });
 });

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
-import { getSafeWahaError, normalizePhone, resolveWahaSessionName, sendWahaText, maskPhone } from "@/lib/server/waha";
+import { convex } from "@/lib/server/convex";
+import { api } from "@/../convex/_generated/api";
+import { Id } from "@/../convex/_generated/dataModel";
+import { getSafeWahaError, normalizePhone, resolveWahaSessionName, sendWahaImage, sendWahaText, maskPhone } from "@/lib/server/waha";
 
 export async function POST(request: Request) {
   if (!verifyAuth(request)) {
@@ -9,14 +12,14 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { phone, program, studentName, recipientName } = body;
+    const { phone, program, studentName, recipientName, campaignId } = body;
     const sessionName = resolveWahaSessionName(body.sessionName);
 
     if (!phone) {
       return NextResponse.json({ error: "Phone number is required." }, { status: 400 });
     }
 
-    if (!program || !["natacion", "aquagym"].includes(program)) {
+    if (!campaignId && (!program || !["natacion", "aquagym"].includes(program))) {
       return NextResponse.json(
         { error: "Invalid program. Must be 'natacion' or 'aquagym'." },
         { status: 400 }
@@ -31,7 +34,44 @@ export async function POST(request: Request) {
       );
     }
 
-    // Build the test message
+    if (campaignId) {
+      const typedCampaignId = campaignId as Id<"marketingCampaigns">;
+      const [campaign, messages] = await Promise.all([
+        convex.query(api.marketing.getMarketingCampaign, { campaignId: typedCampaignId }),
+        convex.query(api.marketing.listCampaignMessages, { campaignId: typedCampaignId }),
+      ]);
+      if (!campaign) {
+        return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
+      }
+      const sampleMessage = messages[0];
+      if (!sampleMessage) {
+        return NextResponse.json({ error: "Campaign has no prepared recipients." }, { status: 400 });
+      }
+
+      if (campaign.imageStorageId) {
+        if (!campaign.imageUrl || !campaign.imageMimeType) {
+          return NextResponse.json({ error: "Campaign image is unavailable." }, { status: 400 });
+        }
+        await sendWahaImage({
+          phone: normalized,
+          message: sampleMessage.message,
+          imageUrl: campaign.imageUrl,
+          mimetype: campaign.imageMimeType,
+          filename: campaign.imageFileName,
+          sessionName,
+        });
+      } else {
+        await sendWahaText({ phone: normalized, message: sampleMessage.message, sessionName });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: sampleMessage.message,
+        recipient: maskPhone(normalized),
+      });
+    }
+
+    // Legacy Mother's Day test message
     let message = "";
     if (program === "natacion") {
       const sName = studentName || "un alumno";

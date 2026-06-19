@@ -5,6 +5,7 @@ import { GET as getQr } from "./whatsapp/qr/route";
 import { GET as getDebug } from "./whatsapp/debug/route";
 import { POST as logoutSession } from "./whatsapp/logout/route";
 import { POST as createCampaign } from "./campaigns/mothers-day/route";
+import { POST as createCustomCampaign } from "./campaigns/route";
 import { GET as getCampaignDetails } from "./campaigns/[campaignId]/route";
 import { POST as sendTest } from "./send-test/route";
 import { POST as sendBatch } from "./send-batch/route";
@@ -203,6 +204,49 @@ describe("Marketing Route Handlers - Campaign CRUD", () => {
     expect(body.campaign.name).toBe("Día de la Madre");
     expect(body.messages.length).toBe(1);
   });
+
+  it("POST campaigns should validate and create a custom campaign", async () => {
+    const mutationSpy = vi.spyOn(convex, "mutation")
+      .mockResolvedValueOnce("campaign-custom" as never)
+      .mockResolvedValueOnce({ preparedCount: 8 } as never);
+    const req = new Request("http://localhost/api/mkt/campaigns", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        name: "Vacaciones",
+        segment: "all",
+        messageTemplate: "Hola {{nombre}}",
+      }),
+    });
+
+    const res = await createCustomCampaign(req);
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      success: true,
+      campaignId: "campaign-custom",
+      preparedCount: 8,
+    });
+    expect(mutationSpy).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      { campaignId: "campaign-custom" }
+    );
+  });
+
+  it("POST campaigns should enforce the image caption limit", async () => {
+    const req = new Request("http://localhost/api/mkt/campaigns", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        name: "Mensaje largo",
+        segment: "all",
+        messageTemplate: "x".repeat(1025),
+        imageStorageId: "storage-1",
+        imageMimeType: "image/jpeg",
+      }),
+    });
+    const res = await createCustomCampaign(req);
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("Marketing Route Handlers - Messaging Operations", () => {
@@ -329,6 +373,36 @@ describe("Marketing Route Handlers - Messaging Operations", () => {
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toBe("Campaign is paused and cannot send messages.");
+  });
+
+  it("POST send-batch should use sendWahaImage for campaigns with media", async () => {
+    vi.spyOn(convex, "query")
+      .mockResolvedValueOnce({
+        _id: "campaign-123",
+        status: "ready",
+        imageStorageId: "storage-1",
+        imageUrl: "https://storage.example/image.jpg",
+        imageMimeType: "image/jpeg",
+        imageFileName: "image.jpg",
+      } as never)
+      .mockResolvedValueOnce([
+        { _id: "msg-1", status: "pending", normalizedPhone: "59171234567", message: "Hola" },
+      ] as never);
+    vi.spyOn(convex, "mutation").mockResolvedValue({} as never);
+    const imageSpy = vi.spyOn(waha, "sendWahaImage").mockResolvedValue({ id: "ok" });
+
+    const req = new Request("http://localhost/api/mkt/send-batch", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ campaignId: "campaign-123", limit: 1 }),
+    });
+    const res = await sendBatch(req);
+    expect(res.status).toBe(200);
+    expect(imageSpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: "Hola",
+      imageUrl: "https://storage.example/image.jpg",
+      mimetype: "image/jpeg",
+    }));
   });
 
   it("POST campaigns/pause should toggle campaign status", async () => {
