@@ -78,6 +78,16 @@ export const update = mutation({
           }
         }
       }
+    } else if (fields.isActive === true && existing.isActive === false) {
+      const students = await ctx.db
+        .query("students")
+        .withIndex("by_modality", (q) => q.eq("modality", existing.key))
+        .collect();
+      for (const student of students) {
+        if (student.status === "withdrawn") {
+          await ctx.db.patch(student._id, { status: "active" });
+        }
+      }
     }
 
     await ctx.db.patch(id, fields);

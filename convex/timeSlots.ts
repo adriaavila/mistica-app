@@ -7,9 +7,12 @@ export const list = query({
     let slots = await ctx.db.query("timeSlots").collect();
     if (args.activeOnly) {
       slots = slots.filter((s) => s.isActive);
-      const allClasses = await ctx.db.query("classes").collect();
-      const classKeys = new Set(allClasses.map((c) => c.key));
-      slots = slots.filter((s) => s.modalities.some((m) => classKeys.has(m)));
+      const activeClasses = await ctx.db
+        .query("classes")
+        .withIndex("by_active", (q) => q.eq("isActive", true))
+        .collect();
+      const activeClassKeys = new Set(activeClasses.map((c) => c.key));
+      slots = slots.filter((s) => s.modalities.some((m) => activeClassKeys.has(m)));
     }
     return slots.sort((a, b) => a.startTime.localeCompare(b.startTime));
   },

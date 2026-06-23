@@ -203,4 +203,56 @@ describe("students", () => {
     expect(pastPendingPayment).not.toBeNull();
     expect(explicitOverduePayment).not.toBeNull();
   });
+
+  it("reactivates withdrawn students when their class is set to active", async () => {
+    const t = convexTest(schema);
+    const timeSlotId = await createTimeSlot(t);
+
+    // Create a class
+    const classId = await t.run(async (ctx) =>
+      ctx.db.insert("classes", {
+        key: "lmv",
+        name: "Natación LMV",
+        description: "Mensualidad Lun-Mié-Vie",
+        price: 250,
+        isActive: false, // Starts inactive
+        days: ["Mon", "Wed", "Fri"],
+        startTime: "15:00",
+        endTime: "18:00",
+      })
+    );
+
+    // Create a withdrawn student in that class
+    const student1Id = await t.mutation(api.students.create, {
+      name: "María García",
+      phone: "04121234567",
+      enrollmentDate: "2026-06-12",
+      modality: "lmv",
+      timeSlotId,
+      status: "withdrawn",
+    });
+
+    // A withdrawn student in a different class
+    const student2Id = await t.mutation(api.students.create, {
+      name: "Pedro Pérez",
+      phone: "04121111111",
+      enrollmentDate: "2026-06-12",
+      modality: "mj",
+      timeSlotId,
+      status: "withdrawn",
+    });
+
+    // Make the class active
+    await t.mutation(api.classes.update, {
+      id: classId,
+      isActive: true,
+    });
+
+    // Verify student statuses
+    const student1 = await t.query(api.students.get, { id: student1Id });
+    const student2 = await t.query(api.students.get, { id: student2Id });
+
+    expect(student1?.status).toBe("active");
+    expect(student2?.status).toBe("withdrawn"); // Remains withdrawn since modality is different
+  });
 });
