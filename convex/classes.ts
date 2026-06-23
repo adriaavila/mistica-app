@@ -52,6 +52,34 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;
+    const existing = await ctx.db.get(id);
+    if (!existing) {
+      throw new Error("Class not found");
+    }
+
+    if (fields.isActive === false && existing.isActive) {
+      const today = new Date().toISOString().split("T")[0];
+      const students = await ctx.db
+        .query("students")
+        .withIndex("by_modality", (q) => q.eq("modality", existing.key))
+        .collect();
+      for (const student of students) {
+        if (student.status !== "withdrawn") {
+          await ctx.db.patch(student._id, { status: "withdrawn" });
+          const payments = await ctx.db
+            .query("payments")
+            .withIndex("by_student", (q) => q.eq("studentId", student._id))
+            .collect();
+          for (const p of payments) {
+            const isOverdue = p.status === "overdue" || (p.status === "pending" && p.dueDate < today);
+            if (p.status !== "paid" && !isOverdue) {
+              await ctx.db.delete(p._id);
+            }
+          }
+        }
+      }
+    }
+
     await ctx.db.patch(id, fields);
   },
 });

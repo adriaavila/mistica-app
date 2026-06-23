@@ -273,6 +273,21 @@ export const update = mutation({
     if (fields.enrollmentDate && fields.enrollmentDate !== existing.enrollmentDate && !existing.originalEnrollmentDate) {
       patch.originalEnrollmentDate = existing.enrollmentDate;
     }
+    
+    if (fields.status === "withdrawn" && existing.status !== "withdrawn") {
+      const today = new Date().toISOString().split("T")[0];
+      const payments = await ctx.db
+        .query("payments")
+        .withIndex("by_student", (q) => q.eq("studentId", id))
+        .collect();
+      for (const p of payments) {
+        const isOverdue = p.status === "overdue" || (p.status === "pending" && p.dueDate < today);
+        if (p.status !== "paid" && !isOverdue) {
+          await ctx.db.delete(p._id);
+        }
+      }
+    }
+    
     await ctx.db.patch(id, patch);
   },
 });

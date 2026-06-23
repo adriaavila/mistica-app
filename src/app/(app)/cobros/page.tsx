@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useSearchParams } from "next/navigation";
@@ -143,10 +143,11 @@ function PaySheet({
   );
 }
 
-function WhatsAppModal({ payment, onClose, currency }: {
+function WhatsAppModal({ payment, onClose, currency, wahaConnected }: {
   payment: PaidPayment;
   onClose: () => void;
   currency: string;
+  wahaConnected: boolean;
 }) {
   const name = payment.student?.name ?? "alumno/a";
   const phone = payment.student?.phone ?? "";
@@ -156,6 +157,44 @@ function WhatsAppModal({ payment, onClose, currency }: {
   const monto = formatCurrency(payment.amount, currency);
   const message = `Hola ${name} 👋, confirmamos tu pago de *${monto}* por *${concepto}*. ¡Gracias! 🏊 — Mística`;
   const url = phone ? buildWhatsAppUrl(phone, message) : null;
+
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const handleSendReceipt = async () => {
+    if (wahaConnected && phone) {
+      setSending(true);
+      try {
+        const res = await fetch("/api/payments/remind", {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer Mistica-Admin246",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ phone, message })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setSent(true);
+          return;
+        }
+        throw new Error(data.error || "Failed to send");
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : "Unknown error";
+        console.error("WAHA receipt send failed, falling back to manual:", errMsg);
+        alert(`No se pudo enviar automáticamente (${errMsg}). Abriendo WhatsApp Web...`);
+        if (url) window.open(url, "_blank");
+        setSent(true);
+      } finally {
+        setSending(false);
+      }
+    } else {
+      if (url) {
+        window.open(url, "_blank");
+        setSent(true);
+      }
+    }
+  };
 
   return (
     <div style={{
@@ -186,18 +225,22 @@ function WhatsAppModal({ payment, onClose, currency }: {
           {message}
         </div>
         {url ? (
-          <a
-            href={url} target="_blank" rel="noopener noreferrer"
+          <button
+            onClick={handleSendReceipt}
+            disabled={sending}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center",
               gap: 8, width: "100%", padding: "14px",
-              background: "#25D366", color: "#fff", borderRadius: 12,
+              background: sent || sending ? "var(--surface-2)" : "#25D366",
+              color: sent || sending ? "var(--text-secondary)" : "#fff",
+              borderRadius: 12, border: "none", cursor: sending ? "default" : "pointer",
               fontWeight: 700, fontSize: 15, textDecoration: "none",
               boxSizing: "border-box", fontFamily: "var(--font)",
             }}
           >
-            <span style={{ fontSize: 20 }}>📲</span> Enviar por WhatsApp
-          </a>
+            <span style={{ fontSize: 20 }}>{sending ? "⌛" : sent ? "✓" : "📲"}</span>{" "}
+            {sending ? "Enviando..." : sent ? "Enviado" : wahaConnected ? "Enviar por WhatsApp" : "Enviar (Abrir WhatsApp Web)"}
+          </button>
         ) : (
           <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center" }}>
             Sin teléfono registrado para este alumno
@@ -299,10 +342,50 @@ function GenerarModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function RecordatoriosModal({ onClose, currency }: { onClose: () => void; currency: string }) {
+function RecordatoriosModal({ onClose, currency, wahaConnected }: { onClose: () => void; currency: string; wahaConnected: boolean }) {
   const overduePayments = useQuery(api.payments.listOverdue);
   const removePayment = useMutation(api.payments.remove);
-  const [sent, setSent] = useState<Set<string>>(new Set());
+  const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+
+  const handleSendReminder = async (paymentId: string, phone: string, message: string, fallbackUrl: string | null) => {
+    if (wahaConnected && phone) {
+      setSendingIds(prev => new Set([...prev, paymentId]));
+      try {
+        const res = await fetch("/api/payments/remind", {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer Mistica-Admin246",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ phone, message })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setSentIds(prev => new Set([...prev, paymentId]));
+          return;
+        }
+        throw new Error(data.error || "Failed to send");
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : "Unknown error";
+        console.error("WAHA direct send failed, falling back to manual:", errMsg);
+        alert(`No se pudo enviar automáticamente (${errMsg}). Abriendo WhatsApp Web...`);
+        if (fallbackUrl) window.open(fallbackUrl, "_blank");
+        setSentIds(prev => new Set([...prev, paymentId]));
+      } finally {
+        setSendingIds(prev => {
+          const next = new Set(prev);
+          next.delete(paymentId);
+          return next;
+        });
+      }
+    } else {
+      if (fallbackUrl) {
+        window.open(fallbackUrl, "_blank");
+        setSentIds(prev => new Set([...prev, paymentId]));
+      }
+    }
+  };
 
   return (
     <div style={{
@@ -324,7 +407,7 @@ function RecordatoriosModal({ onClose, currency }: { onClose: () => void; curren
             <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-secondary)" }}>✕</button>
           </div>
           <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 14 }}>
-            {sent.size}/{overduePayments?.length ?? "…"} enviados
+            {sentIds.size}/{overduePayments?.length ?? "…"} enviados
           </div>
         </div>
         <div style={{ overflowY: "auto", flex: 1, padding: "0 20px 24px" }}>
@@ -341,7 +424,8 @@ function RecordatoriosModal({ onClose, currency }: { onClose: () => void; curren
               const monto = formatCurrency(p.amount, currency);
               const message = `Hola ${name} 👋, tienes un pago pendiente de *${monto}* (${concepto}) vencido hace ${Math.abs(rel.days)} días. Por favor regulariza tu situación. 🙏 — Mística`;
               const url = phone ? buildWhatsAppUrl(phone, message) : null;
-              const wasSent = sent.has(p._id);
+              const wasSent = sentIds.has(p._id);
+              const isSending = sendingIds.has(p._id);
 
               return (
                 <div key={p._id} style={{
@@ -354,19 +438,22 @@ function RecordatoriosModal({ onClose, currency }: { onClose: () => void; curren
                     <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{monto} · {concepto}</div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                    {url ? (
-                      <a
-                        href={url} target="_blank" rel="noopener noreferrer"
-                        onClick={() => setSent(prev => new Set([...prev, p._id]))}
+                    {phone ? (
+                      <button
+                        onClick={() => handleSendReminder(p._id, phone, message, url)}
+                        disabled={isSending}
                         style={{
                           display: "flex", alignItems: "center", gap: 5,
                           padding: "8px 12px", borderRadius: 10,
-                          background: wasSent ? "var(--surface-2)" : "#25D366",
-                          color: wasSent ? "var(--text-secondary)" : "#fff",
-                          fontSize: 12, fontWeight: 700, textDecoration: "none",
+                          border: "none", cursor: isSending ? "default" : "pointer",
+                          background: wasSent ? "var(--surface-2)" : isSending ? "var(--surface-2)" : "#25D366",
+                          color: wasSent || isSending ? "var(--text-secondary)" : "#fff",
+                          fontSize: 12, fontWeight: 700,
                           fontFamily: "var(--font)",
                         }}
-                      >{wasSent ? "✓ Enviado" : "📲 WS"}</a>
+                      >
+                        {isSending ? "⌛ Enviando..." : wasSent ? "✓ Enviado" : wahaConnected ? "📲 Enviar" : "📲 WS"}
+                      </button>
                     ) : (
                       <span style={{ fontSize: 11, color: "var(--text-disabled)" }}>Sin tel.</span>
                     )}
@@ -398,6 +485,20 @@ function CobrosContent() {
   const [showGenerar, setShowGenerar] = useState(false);
   const [showRecordatorios, setShowRecordatorios] = useState(false);
   const [paySheetTarget, setPaySheetTarget] = useState<PaySheetTarget | null>(null);
+  const [wahaConnected, setWahaConnected] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/mkt/whatsapp/status", {
+      headers: {
+        Authorization: "Bearer Mistica-Admin246",
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setWahaConnected(Boolean(data.online && data.status === "WORKING"));
+      })
+      .catch(() => setWahaConnected(false));
+  }, []);
 
   const payments = useQuery(api.payments.listAll, {});
   const config = useQuery(api.appConfig.getAll);
@@ -427,6 +528,11 @@ function CobrosContent() {
         const oa = order[a.effectiveStatus] ?? 1;
         const ob = order[b.effectiveStatus] ?? 1;
         if (oa !== ob) return oa - ob;
+        if (a.effectiveStatus === "paid") {
+          const dateA = a.paidAt || a.dueDate;
+          const dateB = b.paidAt || b.dueDate;
+          return dateB.localeCompare(dateA);
+        }
         return a.dueDate.localeCompare(b.dueDate);
       });
   }, [payments, filter, monthFilter]);
@@ -634,12 +740,13 @@ function CobrosContent() {
         <WhatsAppModal
           payment={whatsappPayment}
           currency={currency}
+          wahaConnected={wahaConnected}
           onClose={() => setWhatsappPayment(null)}
         />
       )}
       {showGenerar && <GenerarModal onClose={() => setShowGenerar(false)} />}
       {showRecordatorios && (
-        <RecordatoriosModal currency={currency} onClose={() => setShowRecordatorios(false)} />
+        <RecordatoriosModal currency={currency} wahaConnected={wahaConnected} onClose={() => setShowRecordatorios(false)} />
       )}
     </div>
   );

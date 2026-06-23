@@ -14,7 +14,7 @@ export default function AlumnosPage() {
   const [search, setSearch] = useState("");
 
   const students = useQuery(api.students.listWithDetails, {
-    status: filter === "all" ? undefined : filter === "active" ? "active" : "suspended",
+    status: filter === "all" ? undefined : filter,
   });
   const classes = useQuery(api.classes.list, {});
 
@@ -64,7 +64,12 @@ export default function AlumnosPage() {
         <div style={{ paddingBottom: 12 }}>
           <SegmentedControl
             fullWidth
-            options={[{ value: "all", label: "Todos" }, { value: "active", label: "Activos" }, { value: "suspended", label: "Suspendidos" }]}
+            options={[
+              { value: "all", label: "Todos" },
+              { value: "active", label: "Activos" },
+              { value: "suspended", label: "Suspendidos" },
+              { value: "withdrawn", label: "Retirados" },
+            ]}
             value={filter}
             onChange={setFilter}
           />
@@ -82,7 +87,17 @@ export default function AlumnosPage() {
         ) : (
           filtered.map(student => (
             <Link key={student._id} href={`/alumnos/${student._id}`} style={{ textDecoration: "none" }}>
-              <div style={{ background: "var(--white)", borderRadius: 16, padding: "12px 14px", boxShadow: "var(--shadow-card)", display: "flex", alignItems: "center", gap: 12, borderLeft: student.paymentStatus === "overdue" ? "3px solid var(--overdue-coral)" : undefined }}>
+              <div style={{
+                background: "var(--white)",
+                borderRadius: 16,
+                padding: "12px 14px",
+                boxShadow: "var(--shadow-card)",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                borderLeft: student.paymentStatus === "overdue" ? "3px solid var(--overdue-coral)" : undefined,
+                opacity: student.status === "withdrawn" ? 0.6 : 1,
+              }}>
                 <Avatar name={student.name} size={44} src={student.photo} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{student.name}</div>
@@ -90,7 +105,12 @@ export default function AlumnosPage() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
                   <Badge size="sm" label={classMap[student.modality]?.name ?? MODALITY_SHORT[student.modality] ?? student.modality} bg={classMap[student.modality]?.bg} color={classMap[student.modality]?.color} />
-                  <Badge variant={student.paymentStatus as "paid" | "pending" | "overdue"} size="sm" />
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {student.status !== "active" && (
+                      <Badge variant={student.status as "suspended" | "withdrawn"} size="sm" />
+                    )}
+                    <Badge variant={student.paymentStatus as "paid" | "pending" | "overdue"} size="sm" />
+                  </div>
                 </div>
                 <span style={{ color: "var(--text-secondary)", fontSize: 16, marginLeft: 4 }}>›</span>
               </div>

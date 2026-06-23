@@ -135,12 +135,22 @@ export const getTodaySummary = query({
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
 
+    const activeClasses = await ctx.db
+      .query("classes")
+      .withIndex("by_active", (q) => q.eq("isActive", true))
+      .collect();
+    const activeClassKeys = new Set(activeClasses.map((c) => c.key));
+
     const todayDay = new Date(args.date + "T12:00:00").toLocaleDateString(
       "en-US",
       { weekday: "short" }
     );
 
-    const todaySlots = slots.filter((s) => s.days.includes(todayDay));
+    const todaySlots = slots.filter(
+      (s) =>
+        s.days.includes(todayDay) &&
+        s.modalities.some((m) => activeClassKeys.has(m))
+    );
 
     const result = await Promise.all(
       todaySlots

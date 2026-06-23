@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
 export const markEnrollmentsPaid = mutation({
@@ -221,3 +221,5 @@ export const seedStudents = mutation({
     return { inserted };
   },
 });
+
+

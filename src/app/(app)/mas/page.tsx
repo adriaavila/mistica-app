@@ -365,29 +365,22 @@ export default function MasPage() {
             >+ Nueva</button>
           </div>
           <Card padding="0">
-            {!todaySlots || !classes ? (
+            {!classes ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} style={{ height: 80, borderRadius: 16, background: "var(--surface-2)" }} />
               ))
-            ) : todaySlots.length === 0 ? (
+            ) : classes.length === 0 ? (
               <div style={{ padding: 24, textAlign: "center", color: "var(--text-secondary)", fontSize: 14 }}>
-                No hay clases programadas hoy.
+                No hay clases registradas.
               </div>
             ) : (
-              todaySlots.map((slot, idx) => {
-                const slotClass = classes.find((cls) => slot.modalities.includes(cls.key));
-
+              classes.map((cls, idx) => {
                 return (
-                  <div key={slot._id}>
+                  <div key={cls._id}>
                     {idx > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 16px" }} />}
                     <button
                       type="button"
-                      onClick={() => slotClass && setEditing({
-                        ...slotClass,
-                        startTime: slot.startTime,
-                        endTime: addOneHour(slot.startTime),
-                      })}
-                      disabled={!slotClass}
+                      onClick={() => setEditing(cls)}
                       style={{
                         width: "100%",
                         padding: "14px 16px",
@@ -397,18 +390,30 @@ export default function MasPage() {
                         gap: 14,
                         background: "transparent",
                         border: "none",
-                        cursor: slotClass ? "pointer" : "default",
+                        cursor: "pointer",
                         fontFamily: "var(--font)",
                         textAlign: "left",
+                        opacity: cls.isActive ? 1 : 0.6,
                       }}
                     >
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{slot.label}</div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{cls.name}</span>
+                          {!cls.isActive && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, color: "var(--text-secondary)",
+                              background: "var(--surface-2)", borderRadius: 6, padding: "2px 6px",
+                            }}>Inactiva</span>
+                          )}
+                        </div>
                         <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                          {slot.startTime} – {slot.endTime}
+                          {cls.description} · {cls.days.map(d => DAY_LABELS[d] ?? d).join(", ")} ({cls.startTime} – {cls.endTime})
                         </div>
                       </div>
-                      <span style={{ color: "var(--text-secondary)", fontSize: 16, flexShrink: 0 }}>›</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--pool-blue)" }}>${cls.price}</span>
+                        <span style={{ color: "var(--text-secondary)", fontSize: 16 }}>›</span>
+                      </div>
                     </button>
                   </div>
                 );
