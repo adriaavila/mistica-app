@@ -338,10 +338,27 @@ function AsistenciaContent() {
                   }
                 >
                   <div style={{
-                    fontSize: 15, fontWeight: 700, color: "var(--text-primary)",
-                    display: "flex", alignItems: "center", gap: 6,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: student.status === "suspended" ? "var(--text-secondary)" : "var(--text-primary)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    opacity: student.status === "suspended" ? 0.7 : 1,
                   }}>
                     {student.name}
+                    {student.status === "suspended" && (
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: "var(--overdue-coral)",
+                        background: "var(--overdue-light)",
+                        borderRadius: 6,
+                        padding: "2px 6px",
+                      }}>
+                        Suspendido
+                      </span>
+                    )}
                     <span style={{ fontSize: 11, color: "var(--pool-blue)", fontWeight: 600 }}>
                       historial
                     </span>

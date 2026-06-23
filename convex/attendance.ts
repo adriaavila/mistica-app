@@ -71,7 +71,7 @@ export const getStudentsForSlot = query({
       ...secondaryStudents.filter((s) => !seen.has(s._id)),
     ];
 
-    const activeStudents = students.filter((s) => s.status === "active");
+    const activeStudents = students.filter((s) => s.status === "active" || s.status === "suspended");
 
     const attendance = await ctx.db
       .query("attendance")
@@ -135,11 +135,8 @@ export const getTodaySummary = query({
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
 
-    const activeClasses = await ctx.db
-      .query("classes")
-      .withIndex("by_active", (q) => q.eq("isActive", true))
-      .collect();
-    const activeClassKeys = new Set(activeClasses.map((c) => c.key));
+    const allClasses = await ctx.db.query("classes").collect();
+    const activeClassKeys = new Set(allClasses.map((c) => c.key));
 
     const todayDay = new Date(args.date + "T12:00:00").toLocaleDateString(
       "en-US",
@@ -170,7 +167,7 @@ export const getTodaySummary = query({
             ...secondaryStudents.filter((s) => !seen.has(s._id)),
           ];
           const activeCount = students.filter(
-            (s) => s.status === "active"
+            (s) => s.status === "active" || s.status === "suspended"
           ).length;
 
           const attendance = await ctx.db
