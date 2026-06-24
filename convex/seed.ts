@@ -222,4 +222,211 @@ export const seedStudents = mutation({
   },
 });
 
+export const syncRealData = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // 1. Ensure active classes are only aquagym3x, aquagym5x, and natacion.
+    // Deactivate mj, lmv, nat5x, natación, etc.
+    const classes = await ctx.db.query("classes").collect();
+    for (const cls of classes) {
+      if (cls.key === "aquagym3x" || cls.key === "aquagym5x" || cls.key === "natacion") {
+        await ctx.db.patch(cls._id, { isActive: true });
+      } else {
+        await ctx.db.patch(cls._id, { isActive: false });
+      }
+    }
+
+    // 2. Ensure class "natacion" is created if not exists
+    let natacionClass = classes.find((c) => c.key === "natacion");
+    if (!natacionClass) {
+      const newClassId = await ctx.db.insert("classes", {
+        key: "natacion",
+        name: "LMV 4:30_5:30 pm",
+        description: "Niños",
+        price: 250,
+        isActive: true,
+        days: ["Mon", "Wed", "Fri"],
+        startTime: "16:30",
+        endTime: "17:30",
+      });
+      natacionClass = await ctx.db.get(newClassId);
+    } else {
+      await ctx.db.patch(natacionClass._id, {
+        name: "LMV 4:30_5:30 pm",
+        description: "Niños",
+        price: 250,
+        isActive: true,
+        days: ["Mon", "Wed", "Fri"],
+        startTime: "16:30",
+        endTime: "17:30",
+      });
+    }
+
+    // 3. Ensure the LMV 4:30–5:30 pm slot is created/active
+    const slots = await ctx.db.query("timeSlots").collect();
+    let slotNat = slots.find((s) => s.label === "LMV 4:30–5:30 pm" || s.label === "LMV 16:30 - 17:30");
+    if (!slotNat) {
+      const newSlotId = await ctx.db.insert("timeSlots", {
+        label: "LMV 4:30–5:30 pm",
+        days: ["Mon", "Wed", "Fri"],
+        startTime: "16:30",
+        endTime: "17:30",
+        isActive: true,
+        maxCapacity: 20,
+        modalities: ["natacion"],
+      });
+      slotNat = await ctx.db.get(newSlotId);
+    } else {
+      await ctx.db.patch(slotNat._id, {
+        label: "LMV 4:30–5:30 pm",
+        days: ["Mon", "Wed", "Fri"],
+        startTime: "16:30",
+        endTime: "17:30",
+        isActive: true,
+        modalities: ["natacion"],
+      });
+    }
+
+    // Define active slots labels
+    const activeSlotLabels = [
+      "AG5x 6:30–7:30 am",
+      "AG3x LMV 8–9 am",
+      "AG3x LMV 9–10 am",
+      "AG3x LMV 7–8 pm",
+      "AG5x 7–8 pm",
+      "LMV 4:30–5:30 pm",
+    ];
+
+    // Deactivate all other slots
+    const allSlots = await ctx.db.query("timeSlots").collect();
+    for (const slot of allSlots) {
+      if (activeSlotLabels.includes(slot.label)) {
+        await ctx.db.patch(slot._id, { isActive: true });
+      } else {
+        await ctx.db.patch(slot._id, { isActive: false });
+      }
+    }
+
+    // Find our main slots for student assignment
+    const slotAG5x_630 = allSlots.find((s) => s.label === "AG5x 6:30–7:30 am");
+    const slotAG3x_8 = allSlots.find((s) => s.label === "AG3x LMV 8–9 am");
+    const slotAG3x_9 = allSlots.find((s) => s.label === "AG3x LMV 9–10 am");
+    const slotAG3x_19 = allSlots.find((s) => s.label === "AG3x LMV 7–8 pm");
+    const slotAG5x_19 = allSlots.find((s) => s.label === "AG5x 7–8 pm");
+
+    // Real students lists
+    const realNatacion = ["JOSE VIRACOCHA", "SERGIO VIRACOCHA", "SANTIAGO ZUÑIGA", "MICAELA LUJO", "JAVIER LUJO"];
+    const realAG5x_630 = ["MABEL HIZA", "ANA ROSAS", "CARMEN SANCHEZ", "ISABEL VILLA"];
+    const realAG3x_8 = ["NATTY DURAN", "JAQUELIN SEGOVIA", "MARCELA RIVERA", "GABRIELA URRIOLAGOITIA", "CLAUDIA URRIOLAGOITIA", "BERTHA VALDEZ"];
+    const realAG3x_9 = ["FATIMA CASASOLA", "MARIA LUISA GRANDSHANT", "MARITA OLLER", "ELIANA MEYER", "MARIA EUGENIA DONOSO", "LOURDES CAVERO", "AURORA MORALES"];
+
+    // Group 4 (19:00 - 20:00) has both 3x and 5x students
+    const realAG3x_19 = ["SANDRA ANNAS", "WALTER MALDONADO", "ESPOSA MALDONADO", "KADDY VACA", "DEIDY VACA", "MIRTHA FLORES", "PATRICIA ALBORNOZ", "ROSITA TOLAY", "MARLENE TOLAY"];
+    const realAG5x_19 = ["LORENA BENITEZ", "ELIDA BENITEZ", "MARITZA VALERIANO"];
+
+    const allRealNames = [
+      ...realNatacion,
+      ...realAG5x_630,
+      ...realAG3x_8,
+      ...realAG3x_9,
+      ...realAG3x_19,
+      ...realAG5x_19,
+    ];
+
+    const normalizeName = (n: string) =>
+      n.trim()
+       .normalize("NFD")
+       .replace(/[\u0300-\u036f]/g, "")
+       .replace(/\s+/g, " ")
+       .toLowerCase();
+
+    const normalizedRealNamesMap = new Map(
+      allRealNames.map((n) => [normalizeName(n), n])
+    );
+
+    // Get all students
+    const students = await ctx.db.query("students").collect();
+    for (const student of students) {
+      const normName = normalizeName(student.name);
+      if (normalizedRealNamesMap.has(normName)) {
+        const origName = normalizedRealNamesMap.get(normName)!;
+        let modality = student.modality;
+        let timeSlotId = student.timeSlotId;
+
+        if (realNatacion.includes(origName)) {
+          modality = "natacion";
+          timeSlotId = slotNat._id;
+        } else if (realAG5x_630.includes(origName)) {
+          modality = "aquagym5x";
+          timeSlotId = slotAG5x_630!._id;
+        } else if (realAG3x_8.includes(origName)) {
+          modality = "aquagym3x";
+          timeSlotId = slotAG3x_8!._id;
+        } else if (realAG3x_9.includes(origName)) {
+          modality = "aquagym3x";
+          timeSlotId = slotAG3x_9!._id;
+        } else if (realAG3x_19.includes(origName)) {
+          modality = "aquagym3x";
+          timeSlotId = slotAG3x_19!._id;
+        } else if (realAG5x_19.includes(origName)) {
+          modality = "aquagym5x";
+          timeSlotId = slotAG5x_19!._id;
+        }
+
+        await ctx.db.patch(student._id, {
+          name: origName, // keep casing correct
+          modality,
+          timeSlotId,
+          status: "active",
+        });
+      } else {
+        // Not in the printed sheet -> set status to withdrawn
+        await ctx.db.patch(student._id, { status: "withdrawn" });
+      }
+    }
+
+    // Now, insert any real students that are NOT in the database yet!
+    const existingNormNames = new Set(students.map((s) => normalizeName(s.name)));
+    for (const name of allRealNames) {
+      const norm = normalizeName(name);
+      if (!existingNormNames.has(norm)) {
+        let modality = "";
+        let timeSlotId: Id<"timeSlots"> | null = null;
+
+        if (realNatacion.includes(name)) {
+          modality = "natacion";
+          timeSlotId = slotNat._id;
+        } else if (realAG5x_630.includes(name)) {
+          modality = "aquagym5x";
+          timeSlotId = slotAG5x_630!._id;
+        } else if (realAG3x_8.includes(name)) {
+          modality = "aquagym3x";
+          timeSlotId = slotAG3x_8!._id;
+        } else if (realAG3x_9.includes(name)) {
+          modality = "aquagym3x";
+          timeSlotId = slotAG3x_9!._id;
+        } else if (realAG3x_19.includes(name)) {
+          modality = "aquagym3x";
+          timeSlotId = slotAG3x_19!._id;
+        } else if (realAG5x_19.includes(name)) {
+          modality = "aquagym5x";
+          timeSlotId = slotAG5x_19!._id;
+        }
+
+        if (timeSlotId) {
+          await ctx.db.insert("students", {
+            name,
+            phone: "",
+            enrollmentDate: "2026-06-01",
+            modality,
+            timeSlotId,
+            status: "active",
+            createdAt: Date.now(),
+          });
+        }
+      }
+    }
+  },
+});
+
 

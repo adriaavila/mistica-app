@@ -347,6 +347,29 @@ function RecordatoriosModal({ onClose, currency, wahaConnected }: { onClose: () 
   const removePayment = useMutation(api.payments.remove);
   const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchRunning, setBatchRunning] = useState(false);
+
+  const toggleSelected = (paymentId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(paymentId)) next.delete(paymentId);
+      else next.add(paymentId);
+      return next;
+    });
+  };
+
+  // Build the send args (message + wa.me fallback url) for one overdue payment.
+  const buildSendArgs = (p: NonNullable<typeof overduePayments>[number]) => {
+    const name = p.student?.name ?? "—";
+    const phone = p.student?.phone ?? "";
+    const rel = getRelativeDays(p.dueDate);
+    const concepto = p.type === "enrollment" ? "Inscripción" : `Mensualidad${p.month ? " " + formatMonth(p.month) : ""}`;
+    const monto = formatCurrency(p.amount, currency);
+    const message = `Hola ${name} 👋, tienes un pago pendiente de *${monto}* (${concepto}) vencido hace ${Math.abs(rel.days)} días. Por favor regulariza tu situación. 🙏 — Mística`;
+    const url = phone ? buildWhatsAppUrl(phone, message) : null;
+    return { phone, message, url };
+  };
 
   const handleSendReminder = async (paymentId: string, phone: string, message: string, fallbackUrl: string | null) => {
     if (wahaConnected && phone) {
@@ -387,6 +410,34 @@ function RecordatoriosModal({ onClose, currency, wahaConnected }: { onClose: () 
     }
   };
 
+  // Most overdue first; only rows with a phone are selectable/sendable.
+  const sorted = overduePayments ? [...overduePayments].sort((a, b) => a.dueDate.localeCompare(b.dueDate)) : [];
+  const sendable = sorted.filter(p => p.student?.phone);
+  const allSelected = sendable.length > 0 && sendable.every(p => selectedIds.has(p._id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(sendable.map(p => p._id)));
+  };
+
+  const handleSendBatch = async () => {
+    // Selected with phone, else all with phone; skip already-sent.
+    const targets = (selectedIds.size > 0 ? sendable.filter(p => selectedIds.has(p._id)) : sendable)
+      .filter(p => !sentIds.has(p._id));
+    if (targets.length === 0) return;
+    setBatchRunning(true);
+    try {
+      for (const p of targets) {
+        const { phone, message, url } = buildSendArgs(p);
+        await handleSendReminder(p._id, phone, message, url);
+        // ponytail: fixed 3s gap between sends; swap for /api/mkt/send-batch anti-ban
+        // spacing if WAHA starts rate-limiting reminders.
+        await new Promise(r => setTimeout(r, 3000));
+      }
+    } finally {
+      setBatchRunning(false);
+    }
+  };
+
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 100,
@@ -409,6 +460,36 @@ function RecordatoriosModal({ onClose, currency, wahaConnected }: { onClose: () 
           <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 14 }}>
             {sentIds.size}/{overduePayments?.length ?? "…"} enviados
           </div>
+          {sendable.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <button
+                onClick={toggleSelectAll}
+                disabled={batchRunning}
+                style={{
+                  padding: "8px 12px", borderRadius: 10, border: "1px solid var(--border)",
+                  background: "#fff", fontSize: 12, fontWeight: 700, cursor: batchRunning ? "default" : "pointer",
+                  color: "var(--text-secondary)", fontFamily: "var(--font)", flexShrink: 0,
+                }}
+              >
+                {allSelected ? "Quitar todos" : "Seleccionar todos"}
+              </button>
+              <button
+                onClick={handleSendBatch}
+                disabled={batchRunning}
+                style={{
+                  flex: 1, padding: "8px 12px", borderRadius: 10, border: "none",
+                  background: batchRunning ? "var(--surface-2)" : "#25D366",
+                  color: batchRunning ? "var(--text-secondary)" : "#fff",
+                  fontSize: 12, fontWeight: 700, cursor: batchRunning ? "default" : "pointer",
+                  fontFamily: "var(--font)",
+                }}
+              >
+                {batchRunning
+                  ? "⌛ Enviando..."
+                  : `📲 Enviar a ${selectedIds.size > 0 ? `seleccionados (${selectedIds.size})` : `todos (${sendable.length})`}`}
+              </button>
+            </div>
+          )}
         </div>
         <div style={{ overflowY: "auto", flex: 1, padding: "0 20px 24px" }}>
           {!overduePayments ? (
@@ -416,7 +497,7 @@ function RecordatoriosModal({ onClose, currency, wahaConnected }: { onClose: () 
           ) : overduePayments.length === 0 ? (
             <div style={{ padding: 20, textAlign: "center" }}>🎉 Sin morosos</div>
           ) : (
-            overduePayments.map(p => {
+            sorted.map(p => {
               const name = p.student?.name ?? "—";
               const phone = p.student?.phone ?? "";
               const rel = getRelativeDays(p.dueDate);
@@ -432,6 +513,15 @@ function RecordatoriosModal({ onClose, currency, wahaConnected }: { onClose: () 
                   display: "flex", alignItems: "center", gap: 12,
                   padding: "12px 0", borderBottom: "1px solid var(--border)",
                 }}>
+                  {phone && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(p._id)}
+                      onChange={() => toggleSelected(p._id)}
+                      disabled={batchRunning}
+                      style={{ width: 18, height: 18, flexShrink: 0, accentColor: "#25D366", cursor: "pointer" }}
+                    />
+                  )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700 }}>{name}</div>
                     <div style={{ fontSize: 12, color: "var(--overdue-coral)", fontWeight: 600 }}>{rel.label}</div>
