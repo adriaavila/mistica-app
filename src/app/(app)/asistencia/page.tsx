@@ -1,8 +1,8 @@
 "use client";
-import { useState, useMemo, Suspense } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import EmptyState from "@/components/ui/EmptyState";
 import BottomSheet from "@/components/ui/BottomSheet";
@@ -176,16 +176,24 @@ function StudentHistorySheet({
 // Main page
 // ──────────────────────────────────────────────────────────────────────────────
 function AsistenciaContent() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [date, setDate] = useState(searchParams.get("date") ?? todayStr());
+  const date = searchParams.get("date") ?? todayStr();
   // null = auto-select; string = user picked explicitly
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(
-    searchParams.get("slotId")
-  );
+  const selectedSlotId = searchParams.get("slotId");
   const [historyStudent, setHistoryStudent] = useState<{
     id: Id<"students">;
     name: string;
   } | null>(null);
+
+  const setScheduleParams = (nextDate: string, nextSlotId?: string | null) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("date", nextDate);
+    if (nextSlotId) params.set("slotId", nextSlotId);
+    else params.delete("slotId");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   const slots = useQuery(api.timeSlots.list, { activeOnly: true });
   const upsertAttendance = useMutation(api.attendance.upsert);
@@ -207,6 +215,21 @@ function AsistenciaContent() {
     if (!slots) return null;
     return getAutoSlotId(slots, date);
   }, [selectedSlotId, slots, date]);
+
+  useEffect(() => {
+    if (!activeSlotId) return;
+    const params = new URLSearchParams(searchParams);
+    let changed = false;
+    if (params.get("date") !== date) {
+      params.set("date", date);
+      changed = true;
+    }
+    if (!selectedSlotId) {
+      params.set("slotId", activeSlotId);
+      changed = true;
+    }
+    if (changed) router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [activeSlotId, date, pathname, router, searchParams, selectedSlotId]);
 
   const studentsData = useQuery(
     api.attendance.getStudentsForSlot,
@@ -262,16 +285,20 @@ function AsistenciaContent() {
         {/* Date picker */}
         <input
           type="date"
+          aria-label="Fecha de asistencia"
+          name="date"
           value={date}
           onChange={(e) => {
-            setDate(e.target.value);
-            setSelectedSlotId(null); // reset to auto-select on date change
+            setScheduleParams(e.target.value, null);
           }}
+          onFocus={e => { e.currentTarget.style.borderColor = "var(--pool-blue)"; e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+          onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
           style={{
             height: 40, borderRadius: 10, border: "1.5px solid var(--border)",
             background: "var(--surface)", padding: "0 12px",
             fontFamily: "var(--font)", fontSize: 14, outline: "none",
             color: "var(--text-primary)", marginBottom: 12, width: "100%",
+            transition: "border-color 0.15s ease, box-shadow 0.15s ease",
           }}
         />
 
@@ -286,8 +313,10 @@ function AsistenciaContent() {
               const isActive = slot._id === activeSlotId;
               return (
                 <button
+                  type="button"
                   key={slot._id}
-                  onClick={() => setSelectedSlotId(slot._id)}
+                  aria-pressed={isActive}
+                  onClick={() => setScheduleParams(date, slot._id)}
                   style={{
                     fontFamily: "var(--font)", fontSize: 13,
                     fontWeight: isActive ? 700 : 500,
@@ -295,8 +324,10 @@ function AsistenciaContent() {
                     background: isActive ? "var(--pool-blue)" : "var(--surface-2)",
                     border: "none", borderRadius: 99, padding: "8px 16px",
                     cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-                    transition: "all 0.15s ease",
+                    transition: "background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
                   }}
+                  onFocus={e => { e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+                  onBlur={e => { e.currentTarget.style.boxShadow = "none"; }}
                 >
                   {slot.label}
                 </button>
@@ -331,13 +362,17 @@ function AsistenciaContent() {
                 <Avatar name={student.name} size={40} src={student.photo} />
 
                 {/* Name — tappable to open history */}
-                <div
-                  style={{ flex: 1, cursor: "pointer" }}
+                <button
+                  type="button"
+                  aria-label={`Ver historial de ${student.name}`}
+                  style={{ flex: 1, minWidth: 0, cursor: "pointer", background: "transparent", border: "none", padding: 0, textAlign: "left", fontFamily: "var(--font)", borderRadius: 10 }}
                   onClick={() =>
                     setHistoryStudent({ id: student._id as Id<"students">, name: student.name })
                   }
+                  onFocus={e => { e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+                  onBlur={e => { e.currentTarget.style.boxShadow = "none"; }}
                 >
-                  <div style={{
+                  <span style={{
                     fontSize: 15,
                     fontWeight: 700,
                     color: student.status === "suspended" ? "var(--text-secondary)" : "var(--text-primary)",
@@ -362,10 +397,10 @@ function AsistenciaContent() {
                     <span style={{ fontSize: 11, color: "var(--pool-blue)", fontWeight: 600 }}>
                       historial
                     </span>
-                  </div>
-                  <div style={{ fontSize: 12, color: isPresent ? "var(--paid-green)" : isAbsent ? "var(--overdue-coral)" : "var(--text-secondary)", marginTop: 2, fontWeight: isPresent || isAbsent ? 600 : 400 }}>
+                  </span>
+                  <span style={{ display: "block", fontSize: 12, color: isPresent ? "var(--paid-green)" : isAbsent ? "var(--overdue-coral)" : "var(--text-secondary)", marginTop: 2, fontWeight: isPresent || isAbsent ? 600 : 400 }}>
                     {isPresent ? "✓ Presente" : isAbsent ? "✗ Ausente" : "Sin registrar"}
-                  </div>
+                  </span>
                   {student.nextDue && (() => {
                     const rel = getRelativeDays(student.nextDue.dueDate);
                     const isPaid = student.nextDue.status === "paid";
@@ -383,20 +418,22 @@ function AsistenciaContent() {
                       ? `Venció ${dateStr}`
                       : `Vence ${dateStr}`;
                     return (
-                      <div style={{
+                      <span style={{
                         display: "inline-flex", alignItems: "center", gap: 4,
                         marginTop: 4, padding: "2px 8px", borderRadius: 99,
                         background: palette.bg, color: palette.fg,
                         fontSize: 11, fontWeight: 700,
                       }}>
                         💳 {label}
-                      </div>
+                      </span>
                     );
                   })()}
-                </div>
+                </button>
 
                 {/* Toggle button */}
                 <button
+                  type="button"
+                  aria-label={`${isPresent ? "Marcar ausente" : "Marcar presente"} a ${student.name}`}
                   onClick={() =>
                     toggle(student._id as Id<"students">, student.attendance?.present ?? null)
                   }
@@ -404,10 +441,12 @@ function AsistenciaContent() {
                     width: 48, height: 48, borderRadius: "50%", border: "none", cursor: "pointer",
                     background: isPresent ? "var(--paid-green)" : isAbsent ? "var(--overdue-light)" : "var(--surface-2)",
                     color: isPresent ? "#fff" : isAbsent ? "var(--overdue-coral)" : "var(--text-secondary)",
-                    fontSize: 20, fontWeight: 700, transition: "all 0.15s ease",
+                    fontSize: 20, fontWeight: 700, transition: "background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     flexShrink: 0,
                   }}
+                  onFocus={e => { e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+                  onBlur={e => { e.currentTarget.style.boxShadow = "none"; }}
                 >
                   {isPresent ? "✓" : isAbsent ? "✗" : "·"}
                 </button>

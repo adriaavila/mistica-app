@@ -1,8 +1,9 @@
 "use client";
-import { useState, useMemo } from "react";
+import { Suspense, useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import EmptyState from "@/components/ui/EmptyState";
 import SegmentedControl from "@/components/ui/SegmentedControl";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -246,10 +247,22 @@ function ProductFormSheet({
   );
 }
 
-export default function VentasPage() {
-  const [tab, setTab] = useState("vender");
+function VentasContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab") ?? "vender";
+  const tab = ["vender", "historial", "productos"].includes(tabParam) ? tabParam : "vender";
   const [selling, setSelling] = useState<Product | null>(null);
   const [editProduct, setEditProduct] = useState<Product | null | "new">(null);
+
+  const setTab = (value: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (value === "vender") params.delete("tab");
+    else params.set("tab", value);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
 
   const allProducts = useQuery(api.products.list, {});
   const sales = useQuery(api.sales.list);
@@ -467,5 +480,13 @@ export default function VentasPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function VentasPage() {
+  return (
+    <Suspense>
+      <VentasContent />
+    </Suspense>
   );
 }

@@ -12,7 +12,9 @@ export default function SegmentedControl({ options, value, onChange, fullWidth }
     }}>
       {options.map(opt => (
         <button
+          type="button"
           key={opt.value}
+          aria-pressed={opt.value === value}
           onClick={() => onChange(opt.value)}
           style={{
             fontFamily: "var(--font)", fontSize: 13,
@@ -21,10 +23,13 @@ export default function SegmentedControl({ options, value, onChange, fullWidth }
             background: opt.value === value ? "var(--white)" : "transparent",
             border: "none", borderRadius: 10,
             padding: "7px 14px", cursor: "pointer",
-            transition: "all 0.15s ease", whiteSpace: "nowrap",
+            transition: "background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
+            whiteSpace: "nowrap",
             flex: fullWidth ? 1 : undefined,
             boxShadow: opt.value === value ? "rgba(0,0,0,0.08) 0px 1px 6px" : "none",
           }}
+          onFocus={e => { e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+          onBlur={e => { e.currentTarget.style.boxShadow = opt.value === value ? "rgba(0,0,0,0.08) 0px 1px 6px" : "none"; }}
         >{opt.label}</button>
       ))}
     </div>

@@ -14,7 +14,14 @@ export default function PageHeader({ title, subtitle, back, action }: {
       position: "sticky", top: 0, zIndex: 10,
     }}>
       {back && (
-        <button onClick={() => router.back()} style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--surface-2)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "var(--text-primary)", flexShrink: 0 }}>←</button>
+        <button
+          type="button"
+          aria-label="Volver"
+          onClick={() => router.back()}
+          onFocus={e => { e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+          onBlur={e => { e.currentTarget.style.boxShadow = "none"; }}
+          style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--surface-2)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "var(--text-primary)", flexShrink: 0, transition: "box-shadow 0.15s ease" }}
+        >←</button>
       )}
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", fontFamily: "var(--font)", lineHeight: 1.2 }}>{title}</div>

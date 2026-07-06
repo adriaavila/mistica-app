@@ -1,42 +1,68 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
+import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Button from "@/components/ui/Button";
 import { readStudentPhoto } from "@/lib/studentPhoto";
-import { Id } from "../../../../../../convex/_generated/dataModel";
+import { Doc, Id } from "../../../../../../convex/_generated/dataModel";
 
 const DUPLICATE_NAME_MESSAGE = "Ya existe un alumno con ese nombre.";
 
 export default function EditarAlumnoPage() {
   const { id } = useParams();
-  const router = useRouter();
   const student = useQuery(api.students.get, { id: id as Id<"students"> });
+
+  if (student === undefined) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)", fontFamily: "var(--font)" }}>Cargando…</div>;
+  if (student === null) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)", fontFamily: "var(--font)" }}>Alumno no encontrado</div>;
+
+  return <EditarAlumnoForm student={student} />;
+}
+
+function EditarAlumnoForm({ student }: { student: Doc<"students"> }) {
+  const router = useRouter();
   const timeSlots = useQuery(api.timeSlots.list, { activeOnly: true });
   const classes = useQuery(api.classes.list, { activeOnly: true });
   const update = useMutation(api.students.update);
 
-  const [form, setForm] = useState({ name: "", phone: "", photo: "", dob: "", enrollmentDate: "", modality: "", timeSlotId: "", secondTimeSlotId: "", status: "active", notes: "" });
+  const [form, setForm] = useState({
+    name: student.name,
+    phone: student.phone,
+    photo: student.photo ?? "",
+    dob: student.dob ?? "",
+    enrollmentDate: student.enrollmentDate,
+    modality: student.modality,
+    timeSlotId: student.timeSlotId,
+    secondTimeSlotId: student.secondTimeSlotId ?? "",
+    status: student.status,
+    notes: student.notes ?? "",
+  });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [ready, setReady] = useState(false);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (student && !ready) {
-      setForm({ name: student.name, phone: student.phone, photo: student.photo ?? "", dob: student.dob ?? "", enrollmentDate: student.enrollmentDate, modality: student.modality, timeSlotId: student.timeSlotId, secondTimeSlotId: student.secondTimeSlotId ?? "", status: student.status, notes: student.notes ?? "" });
-      setPhotoPreview(student.photo ?? null);
-      setReady(true);
-    }
-  }, [student, ready]);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(student.photo ?? null);
 
   const set = (k: string, v: string) => {
-    if (k === "name" && errors.name) setErrors(e => ({ ...e, name: "" }));
+    if (errors[k]) setErrors(e => ({ ...e, [k]: "" }));
     setForm(f => ({ ...f, [k]: v }));
+  };
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.name.trim()) e.name = "Nombre requerido";
+    if (!form.phone.trim()) e.phone = "Teléfono requerido";
+    if (!form.modality) e.modality = "Selecciona una modalidad";
+    if (!form.timeSlotId) e.timeSlotId = "Selecciona un horario";
+    if (form.modality === "nat5x" && !form.secondTimeSlotId) e.secondTimeSlotId = "Selecciona un horario MJ";
+    return e;
+  };
+
+  const focusFirstError = (e: Record<string, string>) => {
+    const first = ["name", "phone", "modality", "timeSlotId", "secondTimeSlotId"].find(k => e[k]);
+    if (first) setTimeout(() => document.querySelector<HTMLElement>(`[name="${first}"]`)?.focus(), 0);
   };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,8 +72,9 @@ export default function EditarAlumnoPage() {
       const photo = await readStudentPhoto(file);
       setPhotoPreview(photo);
       setForm(f => ({ ...f, photo }));
+      setErrors(e => ({ ...e, photo: "" }));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "No se pudo procesar la foto");
+      setErrors(e => ({ ...e, photo: err instanceof Error ? err.message : "No se pudo procesar la foto" }));
     }
   };
 
@@ -66,13 +93,21 @@ export default function EditarAlumnoPage() {
     : [];
 
   const modalityOptions = classes?.map(c => ({ value: c.key, label: c.name })) ?? [];
+  const noSlotsHint = form.modality && timeSlots && filteredSlots.length === 0
+    ? "No hay horarios activos para esta modalidad."
+    : undefined;
+  const noMjSlotsHint = form.modality === "nat5x" && timeSlots && mjSlots.length === 0
+    ? "No hay horarios MJ activos."
+    : undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errs = validate();
+    if (Object.keys(errs).length > 0) { setErrors(errs); focusFirstError(errs); return; }
     setLoading(true);
     try {
       await update({
-        id: id as Id<"students">,
+        id: student._id,
         name: form.name,
         phone: form.phone,
         photo: form.photo || undefined,
@@ -86,30 +121,32 @@ export default function EditarAlumnoPage() {
         status: form.status as "active" | "suspended" | "withdrawn",
         notes: form.notes || undefined,
       });
-      router.push(`/alumnos/${id}`);
+      router.push(`/alumnos/${student._id}`);
     } catch (err) {
       if (err instanceof Error && err.message.includes("Ya existe un alumno")) {
         setErrors({ name: DUPLICATE_NAME_MESSAGE });
+        focusFirstError({ name: DUPLICATE_NAME_MESSAGE });
+      } else {
+        setErrors({ form: "No se pudieron guardar los cambios. Revisa los datos e intenta de nuevo." });
       }
       setLoading(false);
     }
   };
 
-  if (!ready) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)", fontFamily: "var(--font)" }}>Cargando...</div>;
-
   return (
     <div style={{ fontFamily: "var(--font)" }}>
       <PageHeader title="Editar alumno" back />
       <form onSubmit={handleSubmit} style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
-        <Input label="Nombre completo" value={form.name} onChange={e => set("name", e.target.value)} error={errors.name} />
-        <Input label="Teléfono" value={form.phone} onChange={e => set("phone", e.target.value)} type="tel" />
+        {errors.form && <div role="alert" style={{ color: "var(--overdue-coral)", background: "var(--overdue-light)", borderRadius: 12, padding: "10px 12px", fontSize: 13, fontWeight: 600 }}>{errors.form}</div>}
+        <Input name="name" autoComplete="name" label="Nombre completo" value={form.name} onChange={e => set("name", e.target.value)} error={errors.name} />
+        <Input name="phone" autoComplete="tel" inputMode="tel" label="Teléfono" value={form.phone} onChange={e => set("phone", e.target.value)} type="tel" error={errors.phone} />
 
         {/* Photo */}
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 8 }}>Foto del alumno</label>
           {photoPreview ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <img src={photoPreview} alt="Preview" style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: "1.5px solid var(--border)" }} />
+              <Image src={photoPreview} alt="Vista previa" width={64} height={64} unoptimized style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: "1.5px solid var(--border)" }} />
               <button type="button" onClick={removePhoto} style={{ fontSize: 12, color: "var(--overdue-coral)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Quitar foto</button>
             </div>
           ) : (
@@ -121,20 +158,21 @@ export default function EditarAlumnoPage() {
             }}>
               <span style={{ fontSize: 20 }}>📷</span>
               <span>Seleccionar foto</span>
-              <input type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: "none" }} />
+              <input name="photo" type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: "none" }} />
             </label>
           )}
+          {errors.photo && <div role="alert" style={{ fontSize: 12, color: "var(--overdue-coral)", marginTop: 6 }}>{errors.photo}</div>}
         </div>
 
-        <Input label="Fecha de nacimiento" value={form.dob} onChange={e => set("dob", e.target.value)} type="date" />
-        <Input label="Fecha de inscripción" value={form.enrollmentDate} onChange={e => set("enrollmentDate", e.target.value)} type="date" />
-        <Select label="Modalidad" value={form.modality} onChange={e => { set("modality", e.target.value); set("timeSlotId", ""); set("secondTimeSlotId", ""); }} options={[{ value: "", label: "Seleccionar..." }, ...modalityOptions]} />
-        <Select label={form.modality === "nat5x" ? "Horario LMV (Lun/Mié/Vie)" : "Horario"} value={form.timeSlotId} onChange={e => set("timeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar..." }, ...filteredSlots.map(s => ({ value: s._id, label: s.label }))]} />
+        <Input name="dob" autoComplete="bday" label="Fecha de nacimiento" value={form.dob} onChange={e => set("dob", e.target.value)} type="date" />
+        <Input name="enrollmentDate" autoComplete="off" label="Fecha de inscripción" value={form.enrollmentDate} onChange={e => set("enrollmentDate", e.target.value)} type="date" />
+        <Select name="modality" label="Modalidad" value={form.modality} onChange={e => { set("modality", e.target.value); set("timeSlotId", ""); set("secondTimeSlotId", ""); }} options={[{ value: "", label: "Seleccionar…" }, ...modalityOptions]} error={errors.modality} />
+        <Select name="timeSlotId" label={form.modality === "nat5x" ? "Horario LMV (Lun/Mié/Vie)" : "Horario"} value={form.timeSlotId} onChange={e => set("timeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar…" }, ...filteredSlots.map(s => ({ value: s._id, label: s.label }))]} error={errors.timeSlotId} hint={noSlotsHint} />
         {form.modality === "nat5x" && (
-          <Select label="Horario MJ (Mar/Jue)" value={form.secondTimeSlotId} onChange={e => set("secondTimeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar horario MJ..." }, ...mjSlots.map(s => ({ value: s._id, label: s.label }))]} />
+          <Select name="secondTimeSlotId" label="Horario MJ (Mar/Jue)" value={form.secondTimeSlotId} onChange={e => set("secondTimeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar horario MJ…" }, ...mjSlots.map(s => ({ value: s._id, label: s.label }))]} error={errors.secondTimeSlotId} hint={noMjSlotsHint} />
         )}
-        <Select label="Estado" value={form.status} onChange={e => set("status", e.target.value)} options={[{ value: "active", label: "Activo" }, { value: "suspended", label: "Suspendido" }, { value: "withdrawn", label: "Retirado" }]} />
-        <Input label="Notas" value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Observaciones..." />
+        <Select name="status" label="Estado" value={form.status} onChange={e => set("status", e.target.value)} options={[{ value: "active", label: "Activo" }, { value: "suspended", label: "Suspendido" }, { value: "withdrawn", label: "Retirado" }]} />
+        <Input name="notes" autoComplete="off" label="Notas" value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Observaciones…" />
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 10 }}>
           <Button type="submit" variant="brand" size="lg" fullWidth loading={loading}>Guardar cambios</Button>
           <Button type="button" variant="outline" size="lg" fullWidth onClick={() => router.back()}>Cancelar</Button>

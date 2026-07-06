@@ -21,7 +21,7 @@ const SIZES = {
   lg: { fontSize: 15, padding: "0 24px", height: 52, borderRadius: 14 },
 };
 
-export default function Button({ variant = "primary", size = "md", fullWidth, loading, children, style, disabled, ...props }: ButtonProps) {
+export default function Button({ variant = "primary", size = "md", fullWidth, loading, children, style, disabled, onFocus, onBlur, ...props }: ButtonProps) {
   return (
     <button
       disabled={disabled || loading}
@@ -30,13 +30,16 @@ export default function Button({ variant = "primary", size = "md", fullWidth, lo
         gap: 6, fontFamily: "var(--font)", fontWeight: 600,
         cursor: disabled || loading ? "not-allowed" : "pointer",
         opacity: disabled || loading ? 0.55 : 1,
-        transition: "all 0.15s ease", whiteSpace: "nowrap",
+        transition: "background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease",
+        whiteSpace: "nowrap",
         width: fullWidth ? "100%" : undefined,
         ...VARIANTS[variant], ...SIZES[size], ...style,
       }}
       {...props}
+      onFocus={e => { e.currentTarget.style.boxShadow = "var(--shadow-focus)"; onFocus?.(e); }}
+      onBlur={e => { e.currentTarget.style.boxShadow = ""; onBlur?.(e); }}
     >
-      {loading ? <span style={{ opacity: 0.7 }}>...</span> : children}
+      {loading ? <span style={{ opacity: 0.7 }}>…</span> : children}
     </button>
   );
 }

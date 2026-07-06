@@ -140,6 +140,58 @@ function isSessionNotStartedMessage(message: string): boolean {
   );
 }
 
+function formatWahaErrorValue(value: unknown): string | null {
+  if (typeof value === "string") {
+    return value.trim() || null;
+  }
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map(formatWahaErrorValue)
+      .filter((part): part is string => Boolean(part));
+    return parts.length ? parts.join("; ") : null;
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const message = formatWahaErrorValue(record.message ?? record.msg ?? record.reason);
+    if (!message) {
+      return null;
+    }
+
+    if (Array.isArray(record.loc)) {
+      const location = record.loc.map(String).join(".");
+      return location ? `${location}: ${message}` : message;
+    }
+
+    if (typeof record.path === "string" && record.path.trim()) {
+      return `${record.path.trim()}: ${message}`;
+    }
+
+    return message;
+  }
+
+  return null;
+}
+
+function formatWahaErrorBody(body: unknown): string | null {
+  if (!body || typeof body !== "object") {
+    return formatWahaErrorValue(body);
+  }
+
+  const record = body as Record<string, unknown>;
+  const parts = [
+    formatWahaErrorValue(record.message),
+    formatWahaErrorValue(record.error),
+    formatWahaErrorValue(record.detail),
+    formatWahaErrorValue(record.details),
+    formatWahaErrorValue(record.errors),
+  ].filter((part): part is string => Boolean(part));
+
+  const uniqueParts = [...new Set(parts)];
+  return uniqueParts.length ? uniqueParts.join("; ") : null;
+}
+
 /**
  * Normalizes a phone number for Bolivia.
  * Rules:
@@ -197,7 +249,9 @@ async function wahaRequest(path: string, options: RequestInit = {}): Promise<unk
   headers.set("X-Api-Key", apiKey);
 
   const controller = new AbortController();
-  const timeoutMs = 15000; // 15 seconds timeout
+  // ponytail: 8s so the worst-case start (up to 3 WAHA calls) returns a real
+  // error well before the browser/gateway gives up with ERR_TIMED_OUT.
+  const timeoutMs = 8000;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -213,8 +267,9 @@ async function wahaRequest(path: string, options: RequestInit = {}): Promise<unk
       let errMsg = `WAHA API returned status ${response.status}`;
       try {
         const body = await response.json();
-        if (body && body.message) {
-          errMsg = String(body.message);
+        const formattedBody = formatWahaErrorBody(body);
+        if (formattedBody) {
+          errMsg = formattedBody;
         }
       } catch {
         // Fallback to default message if JSON parsing fails

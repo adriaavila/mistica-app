@@ -280,6 +280,23 @@ describe("WAHA API endpoints requests", () => {
     ).rejects.toThrow("Invalid phone number provided for sending: 4123***4567");
   });
 
+  it("sendWahaText should include WAHA validation details for 422 responses", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: false,
+      status: 422,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        detail: [
+          { loc: ["body", "chatId"], msg: "Invalid chat id", type: "value_error" },
+        ],
+      }),
+    } as any);
+
+    await expect(
+      sendWahaText({ phone: "71234567", message: "Hola", sessionName: "default" })
+    ).rejects.toThrow("body.chatId: Invalid chat id");
+  });
+
   it("sendWahaImage should send a remote image with the message as caption", async () => {
     const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,

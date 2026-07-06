@@ -8,12 +8,6 @@ import EmptyState from "@/components/ui/EmptyState";
 import { DAY_LABELS } from "@/lib/utils";
 
 const ALL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-const ALL_MODALITIES = [
-  { value: "lmv",       label: "Natación LMV" },
-  { value: "mj",        label: "Natación MJ" },
-  { value: "aquagym3x", label: "Aqua Gym 3x" },
-  { value: "aquagym5x", label: "Aqua Gym 5x" },
-];
 
 type Slot = {
   _id: Id<"timeSlots">;
@@ -53,12 +47,14 @@ function SlotForm({
   onClose,
   onDelete,
   saving,
+  modalityOptions,
 }: {
   initial: FormState;
   onSave: (f: FormState) => void;
   onClose: () => void;
   onDelete?: () => void;
   saving: boolean;
+  modalityOptions: { value: string; label: string }[];
 }) {
   const [form, setForm] = useState<FormState>(initial);
 
@@ -157,7 +153,7 @@ function SlotForm({
         {/* Modalities */}
         <label style={labelStyle}>Modalidades</label>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-          {ALL_MODALITIES.map(m => (
+          {modalityOptions.map(m => (
             <label key={m.value} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
               <input
                 type="checkbox"
@@ -232,12 +228,14 @@ const inputStyle: React.CSSProperties = {
 export default function HorariosPage() {
   const router = useRouter();
   const slots = useQuery(api.timeSlots.listWithCapacity);
+  const classes = useQuery(api.classes.list, { activeOnly: true });
   const createSlot = useMutation(api.timeSlots.create);
   const updateSlot = useMutation(api.timeSlots.update);
   const removeSlot = useMutation(api.timeSlots.remove);
 
   const [editing, setEditing] = useState<Slot | null | "new">(null);
   const [saving, setSaving] = useState(false);
+  const modalityOptions = classes?.map(c => ({ value: c.key, label: c.name })) ?? [];
 
   const handleSave = async (form: FormState) => {
     setSaving(true);
@@ -374,6 +372,7 @@ export default function HorariosPage() {
           onClose={() => setEditing(null)}
           onDelete={editing !== "new" ? () => handleDelete(editing._id) : undefined}
           saving={saving}
+          modalityOptions={modalityOptions}
         />
       )}
     </div>

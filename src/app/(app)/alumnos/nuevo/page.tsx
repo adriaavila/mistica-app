@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
 import Input from "@/components/ui/Input";
@@ -29,8 +30,13 @@ export default function NuevoAlumnoPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const set = (k: string, v: string | boolean) => {
-    if (k === "name" && errors.name) setErrors(e => ({ ...e, name: "" }));
+    if (errors[k]) setErrors(e => ({ ...e, [k]: "" }));
     setForm(f => ({ ...f, [k]: v }));
+  };
+
+  const focusFirstError = (e: Record<string, string>) => {
+    const first = ["name", "phone", "modality", "timeSlotId", "secondTimeSlotId"].find(k => e[k]);
+    if (first) setTimeout(() => document.querySelector<HTMLElement>(`[name="${first}"]`)?.focus(), 0);
   };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,8 +46,9 @@ export default function NuevoAlumnoPage() {
       const photo = await readStudentPhoto(file);
       setPhotoPreview(photo);
       setForm(f => ({ ...f, photo }));
+      setErrors(e => ({ ...e, photo: "" }));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "No se pudo procesar la foto");
+      setErrors(e => ({ ...e, photo: err instanceof Error ? err.message : "No se pudo procesar la foto" }));
     }
   };
 
@@ -62,6 +69,12 @@ export default function NuevoAlumnoPage() {
   const modalityOptions = classes?.map(c => ({ value: c.key, label: c.name })) ?? [];
   const slotOptions = filteredSlots.map(s => ({ value: s._id, label: s.label }));
   const mjSlotOptions = mjSlots.map(s => ({ value: s._id, label: s.label }));
+  const noSlotsHint = form.modality && timeSlots && filteredSlots.length === 0
+    ? "No hay horarios activos para esta modalidad."
+    : undefined;
+  const noMjSlotsHint = form.modality === "nat5x" && timeSlots && mjSlots.length === 0
+    ? "No hay horarios MJ activos."
+    : undefined;
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -76,7 +89,7 @@ export default function NuevoAlumnoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs = validate();
-    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    if (Object.keys(errs).length > 0) { setErrors(errs); focusFirstError(errs); return; }
     setLoading(true);
     try {
       await create({
@@ -98,6 +111,9 @@ export default function NuevoAlumnoPage() {
     } catch (err) {
       if (err instanceof Error && err.message.includes("Ya existe un alumno")) {
         setErrors({ name: DUPLICATE_NAME_MESSAGE });
+        focusFirstError({ name: DUPLICATE_NAME_MESSAGE });
+      } else {
+        setErrors({ form: "No se pudo inscribir el alumno. Revisa los datos e intenta de nuevo." });
       }
       setLoading(false);
     }
@@ -107,15 +123,16 @@ export default function NuevoAlumnoPage() {
     <div style={{ fontFamily: "var(--font)" }}>
       <PageHeader title="Nuevo alumno" back />
       <form onSubmit={handleSubmit} style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
-        <Input label="Nombre completo" value={form.name} onChange={e => set("name", e.target.value)} placeholder="Ej. María García" error={errors.name} />
-        <Input label="Teléfono" value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="Ej. 0412-1234567" type="tel" error={errors.phone} />
+        {errors.form && <div role="alert" style={{ color: "var(--overdue-coral)", background: "var(--overdue-light)", borderRadius: 12, padding: "10px 12px", fontSize: 13, fontWeight: 600 }}>{errors.form}</div>}
+        <Input name="name" autoComplete="name" label="Nombre completo" value={form.name} onChange={e => set("name", e.target.value)} placeholder="Ej. María García…" error={errors.name} />
+        <Input name="phone" autoComplete="tel" inputMode="tel" label="Teléfono" value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="Ej. 0412-1234567…" type="tel" error={errors.phone} />
 
         {/* Photo */}
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 8 }}>Foto del alumno</label>
           {photoPreview ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <img src={photoPreview} alt="Preview" style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: "1.5px solid var(--border)" }} />
+              <Image src={photoPreview} alt="Vista previa" width={64} height={64} unoptimized style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: "1.5px solid var(--border)" }} />
               <button type="button" onClick={removePhoto} style={{ fontSize: 12, color: "var(--overdue-coral)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Quitar foto</button>
             </div>
           ) : (
@@ -127,20 +144,21 @@ export default function NuevoAlumnoPage() {
             }}>
               <span style={{ fontSize: 20 }}>📷</span>
               <span>Seleccionar foto</span>
-              <input type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: "none" }} />
+              <input name="photo" type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: "none" }} />
             </label>
           )}
+          {errors.photo && <div role="alert" style={{ fontSize: 12, color: "var(--overdue-coral)", marginTop: 6 }}>{errors.photo}</div>}
         </div>
 
-        <Input label="Fecha de nacimiento (opcional)" value={form.dob} onChange={e => set("dob", e.target.value)} type="date" />
-        <Input label="Fecha de inscripción" value={form.enrollmentDate} onChange={e => set("enrollmentDate", e.target.value)} type="date" />
-        <Select label="Modalidad" value={form.modality} onChange={e => { set("modality", e.target.value); set("timeSlotId", ""); set("secondTimeSlotId", ""); }} options={[{ value: "", label: "Seleccionar modalidad..." }, ...modalityOptions]} error={errors.modality} />
-        <Select label={form.modality === "nat5x" ? "Horario LMV (Lun/Mié/Vie)" : "Horario"} value={form.timeSlotId} onChange={e => set("timeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar horario..." }, ...slotOptions]} error={errors.timeSlotId} />
+        <Input name="dob" autoComplete="bday" label="Fecha de nacimiento (opcional)" value={form.dob} onChange={e => set("dob", e.target.value)} type="date" />
+        <Input name="enrollmentDate" autoComplete="off" label="Fecha de inscripción" value={form.enrollmentDate} onChange={e => set("enrollmentDate", e.target.value)} type="date" />
+        <Select name="modality" label="Modalidad" value={form.modality} onChange={e => { set("modality", e.target.value); set("timeSlotId", ""); set("secondTimeSlotId", ""); }} options={[{ value: "", label: "Seleccionar modalidad…" }, ...modalityOptions]} error={errors.modality} />
+        <Select name="timeSlotId" label={form.modality === "nat5x" ? "Horario LMV (Lun/Mié/Vie)" : "Horario"} value={form.timeSlotId} onChange={e => set("timeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar horario…" }, ...slotOptions]} error={errors.timeSlotId} hint={noSlotsHint} />
         {form.modality === "nat5x" && (
-          <Select label="Horario MJ (Mar/Jue)" value={form.secondTimeSlotId} onChange={e => set("secondTimeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar horario MJ..." }, ...mjSlotOptions]} error={errors.secondTimeSlotId} />
+          <Select name="secondTimeSlotId" label="Horario MJ (Mar/Jue)" value={form.secondTimeSlotId} onChange={e => set("secondTimeSlotId", e.target.value)} options={[{ value: "", label: "Seleccionar horario MJ…" }, ...mjSlotOptions]} error={errors.secondTimeSlotId} hint={noMjSlotsHint} />
         )}
-        <Select label="Estado" value={form.status} onChange={e => set("status", e.target.value)} options={[{ value: "active", label: "Activo" }, { value: "suspended", label: "Suspendido" }, { value: "withdrawn", label: "Retirado" }]} />
-        <Input label="Notas (opcional)" value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Observaciones..." />
+        <Select name="status" label="Estado" value={form.status} onChange={e => set("status", e.target.value)} options={[{ value: "active", label: "Activo" }, { value: "suspended", label: "Suspendido" }, { value: "withdrawn", label: "Retirado" }]} />
+        <Input name="notes" autoComplete="off" label="Notas (opcional)" value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Observaciones…" />
 
         <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, fontWeight: 600, color: "var(--text-primary)", cursor: "pointer", marginTop: 4 }}>
           <input

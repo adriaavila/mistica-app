@@ -2,10 +2,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import SegmentedControl from "@/components/ui/SegmentedControl";
 import EmptyState from "@/components/ui/EmptyState";
+import ConfirmSheet from "@/components/ui/ConfirmSheet";
 import { formatCurrency, formatDate, getRelativeDays, formatMonth } from "@/lib/utils";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { Suspense } from "react";
@@ -39,6 +40,14 @@ type PaySheetTarget = {
   amount: number;
   paidAmount: number;
   studentName: string;
+};
+
+type ConfirmAction = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  danger?: boolean;
+  run: () => Promise<void>;
 };
 
 function PaySheet({
@@ -349,6 +358,7 @@ function RecordatoriosModal({ onClose, currency, wahaConnected }: { onClose: () 
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchRunning, setBatchRunning] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   const toggleSelected = (paymentId: string) => {
     setSelectedIds(prev => {
@@ -439,6 +449,7 @@ function RecordatoriosModal({ onClose, currency, wahaConnected }: { onClose: () 
   };
 
   return (
+    <>
     <div style={{
       position: "fixed", inset: 0, zIndex: 100,
       background: "rgba(0,0,0,0.5)", display: "flex",
@@ -548,7 +559,17 @@ function RecordatoriosModal({ onClose, currency, wahaConnected }: { onClose: () 
                       <span style={{ fontSize: 11, color: "var(--text-disabled)" }}>Sin tel.</span>
                     )}
                     <button
-                      onClick={() => removePayment({ id: p._id as Id<"payments"> })}
+                      type="button"
+                      aria-label={`Borrar cobro de ${name}`}
+                      onClick={() => setConfirmAction({
+                        title: "Borrar cobro",
+                        description: `Se eliminará el cobro de ${monto} para ${name}. Esta acción no se puede deshacer.`,
+                        confirmLabel: "Borrar cobro",
+                        danger: true,
+                        run: async () => {
+                          await removePayment({ id: p._id as Id<"payments"> });
+                        },
+                      })}
                       style={{
                         background: "var(--overdue-light)", border: "none", borderRadius: 8,
                         padding: "8px 10px", fontSize: 13, cursor: "pointer",
@@ -564,18 +585,41 @@ function RecordatoriosModal({ onClose, currency, wahaConnected }: { onClose: () 
         </div>
       </div>
     </div>
+    {confirmAction && (
+      <ConfirmSheet
+        open
+        title={confirmAction.title}
+        description={confirmAction.description}
+        confirmLabel={confirmAction.confirmLabel}
+        danger={confirmAction.danger}
+        onConfirm={confirmAction.run}
+        onClose={() => setConfirmAction(null)}
+      />
+    )}
+    </>
   );
 }
 
 function CobrosContent() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [filter, setFilter] = useState(searchParams.get("filter") ?? "all");
-  const [monthFilter, setMonthFilter] = useState("all");
+  const filter = searchParams.get("filter") ?? "all";
+  const monthFilter = searchParams.get("month") ?? "all";
   const [whatsappPayment, setWhatsappPayment] = useState<PaidPayment | null>(null);
   const [showGenerar, setShowGenerar] = useState(false);
   const [showRecordatorios, setShowRecordatorios] = useState(false);
   const [paySheetTarget, setPaySheetTarget] = useState<PaySheetTarget | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [wahaConnected, setWahaConnected] = useState(false);
+
+  const setUrlParam = (key: string, value: string, defaultValue = "all") => {
+    const params = new URLSearchParams(searchParams);
+    if (!value || value === defaultValue) params.delete(key);
+    else params.set(key, value);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
 
   useEffect(() => {
     fetch("/api/mkt/whatsapp/status", {
@@ -693,7 +737,7 @@ function CobrosContent() {
           ].map(opt => (
             <button
               key={opt.value}
-              onClick={() => setMonthFilter(opt.value)}
+              onClick={() => setUrlParam("month", opt.value)}
               style={{
                 flexShrink: 0, padding: "5px 12px", borderRadius: 99,
                 border: "1.5px solid",
@@ -717,7 +761,7 @@ function CobrosContent() {
               { value: "paid", label: "Pagados" },
             ]}
             value={filter}
-            onChange={setFilter}
+            onChange={(value) => setUrlParam("filter", value)}
           />
         </div>
       </div>
@@ -775,11 +819,16 @@ function CobrosContent() {
                   {!isPaid ? (
                     <div style={{ display: "flex", gap: 6 }}>
                       <button
-                        onClick={async () => {
-                          if (confirm(`¿Eximir/borrar este cobro de ${formatCurrency(payment.amount, currency)} para ${payment.student?.name ?? "este alumno"}?`)) {
+                        type="button"
+                        onClick={() => setConfirmAction({
+                          title: "Eximir cobro",
+                          description: `Se eliminará el cobro de ${formatCurrency(payment.amount, currency)} para ${payment.student?.name ?? "este alumno"}. Úsalo solo si no se cobrará este monto.`,
+                          confirmLabel: "Eximir cobro",
+                          danger: true,
+                          run: async () => {
                             await removePayment({ id: payment._id as Id<"payments"> });
-                          }
-                        }}
+                          },
+                        })}
                         style={{
                           background: "var(--overdue-light)", color: "var(--overdue-coral)", border: "none",
                           borderRadius: 8, padding: "6px 8px", fontSize: 12, fontWeight: 700,
@@ -797,7 +846,15 @@ function CobrosContent() {
                     </div>
                   ) : (
                     <button
-                      onClick={() => markPending({ id: payment._id as Id<"payments"> })}
+                      type="button"
+                      onClick={() => setConfirmAction({
+                        title: "Revertir pago",
+                        description: `El cobro de ${formatCurrency(payment.amount, currency)} para ${payment.student?.name ?? "este alumno"} volverá a pendiente.`,
+                        confirmLabel: "Revertir pago",
+                        run: async () => {
+                          await markPending({ id: payment._id as Id<"payments"> });
+                        },
+                      })}
                       style={{
                         background: "var(--surface-2)", color: "var(--text-secondary)", border: "none",
                         borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600,
@@ -837,6 +894,17 @@ function CobrosContent() {
       {showGenerar && <GenerarModal onClose={() => setShowGenerar(false)} />}
       {showRecordatorios && (
         <RecordatoriosModal currency={currency} wahaConnected={wahaConnected} onClose={() => setShowRecordatorios(false)} />
+      )}
+      {confirmAction && (
+        <ConfirmSheet
+          open
+          title={confirmAction.title}
+          description={confirmAction.description}
+          confirmLabel={confirmAction.confirmLabel}
+          danger={confirmAction.danger}
+          onConfirm={confirmAction.run}
+          onClose={() => setConfirmAction(null)}
+        />
       )}
     </div>
   );

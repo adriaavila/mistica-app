@@ -1,17 +1,29 @@
 "use client";
-import { useState, useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import SegmentedControl from "@/components/ui/SegmentedControl";
 import { MODALITY_SHORT, MODALITY_LABELS, MODALITY_COLORS } from "@/lib/utils";
 
-export default function AlumnosPage() {
-  const [filter, setFilter] = useState("all");
-  const [search, setSearch] = useState("");
+function AlumnosContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const filter = searchParams.get("filter") ?? "all";
+  const search = searchParams.get("q") ?? "";
+
+  const setUrlParam = (key: string, value: string, defaultValue = "") => {
+    const params = new URLSearchParams(searchParams);
+    if (!value || value === defaultValue) params.delete(key);
+    else params.set(key, value);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
 
   const students = useQuery(api.students.listWithDetails, {
     status: filter === "all" ? undefined : filter,
@@ -54,10 +66,15 @@ export default function AlumnosPage() {
         <div style={{ position: "relative", marginBottom: 12 }}>
           <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: "var(--text-secondary)" }}>🔍</span>
           <input
-            placeholder="Buscar alumno..."
+            aria-label="Buscar alumno"
+            name="q"
+            autoComplete="off"
+            placeholder="Buscar alumno…"
             value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: "100%", height: 44, borderRadius: 12, border: "1.5px solid var(--border)", background: "var(--surface)", padding: "0 14px 0 40px", fontFamily: "var(--font)", fontSize: 14, outline: "none", color: "var(--text-primary)", boxSizing: "border-box" }}
+            onChange={e => setUrlParam("q", e.target.value)}
+            onFocus={e => { e.currentTarget.style.borderColor = "var(--pool-blue)"; e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "none"; }}
+            style={{ width: "100%", height: 44, borderRadius: 12, border: "1.5px solid var(--border)", background: "var(--surface)", padding: "0 14px 0 40px", fontFamily: "var(--font)", fontSize: 14, outline: "none", color: "var(--text-primary)", boxSizing: "border-box", transition: "border-color 0.15s ease, box-shadow 0.15s ease" }}
           />
         </div>
         {/* Filter */}
@@ -71,7 +88,7 @@ export default function AlumnosPage() {
               { value: "withdrawn", label: "Retirados" },
             ]}
             value={filter}
-            onChange={setFilter}
+            onChange={(value) => setUrlParam("filter", value, "all")}
           />
         </div>
       </div>
@@ -120,5 +137,13 @@ export default function AlumnosPage() {
       </div>
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
     </div>
+  );
+}
+
+export default function AlumnosPage() {
+  return (
+    <Suspense>
+      <AlumnosContent />
+    </Suspense>
   );
 }
