@@ -378,43 +378,55 @@ export default function MasPage() {
                 return (
                   <div key={cls._id}>
                     {idx > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 16px" }} />}
-                    <button
-                      type="button"
-                      onClick={() => setEditing(cls)}
-                      style={{
-                        width: "100%",
-                        padding: "14px 16px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 14,
-                        background: "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                        fontFamily: "var(--font)",
-                        textAlign: "left",
-                        opacity: cls.isActive ? 1 : 0.6,
-                      }}
-                    >
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{cls.name}</span>
-                          {!cls.isActive && (
-                            <span style={{
-                              fontSize: 10, fontWeight: 700, color: "var(--text-secondary)",
-                              background: "var(--surface-2)", borderRadius: 6, padding: "2px 6px",
-                            }}>Inactiva</span>
-                          )}
+                    <div style={{ display: "flex", alignItems: "center", opacity: cls.isActive ? 1 : 0.6 }}>
+                      <button
+                        type="button"
+                        onClick={() => setEditing(cls)}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          padding: "14px 0 14px 16px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 14,
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          fontFamily: "var(--font)",
+                          textAlign: "left",
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{cls.name}</span>
+                            {!cls.isActive && (
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, color: "var(--text-secondary)",
+                                background: "var(--surface-2)", borderRadius: 6, padding: "2px 6px",
+                              }}>Inactiva</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                            {cls.description} · {cls.days.map(d => DAY_LABELS[d] ?? d).join(", ")} ({cls.startTime} – {cls.endTime})
+                          </div>
                         </div>
-                        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                          {cls.description} · {cls.days.map(d => DAY_LABELS[d] ?? d).join(", ")} ({cls.startTime} – {cls.endTime})
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--pool-blue)" }}>${cls.price}</span>
+                          <span style={{ color: "var(--text-secondary)", fontSize: 16 }}>›</span>
                         </div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--pool-blue)" }}>${cls.price}</span>
-                        <span style={{ color: "var(--text-secondary)", fontSize: 16 }}>›</span>
-                      </div>
-                    </button>
+                      </button>
+                      <Link
+                        href={`/alumnos?modality=${cls.key}`}
+                        aria-label={`Ver alumnos de ${cls.name}`}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          width: 36, height: 36, borderRadius: "50%", margin: "0 12px 0 4px",
+                          background: "var(--pool-light)", fontSize: 16, textDecoration: "none",
+                          flexShrink: 0,
+                        }}
+                      >👥</Link>
+                    </div>
                   </div>
                 );
               })

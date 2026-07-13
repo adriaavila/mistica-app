@@ -9,6 +9,7 @@ import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import SegmentedControl from "@/components/ui/SegmentedControl";
 import { MODALITY_SHORT, MODALITY_LABELS, MODALITY_COLORS } from "@/lib/utils";
+import { Id } from "../../../../convex/_generated/dataModel";
 
 function AlumnosContent() {
   const router = useRouter();
@@ -16,6 +17,8 @@ function AlumnosContent() {
   const searchParams = useSearchParams();
   const filter = searchParams.get("filter") ?? "all";
   const search = searchParams.get("q") ?? "";
+  const slotFilter = searchParams.get("slot");
+  const modalityFilter = searchParams.get("modality");
 
   const setUrlParam = (key: string, value: string, defaultValue = "") => {
     const params = new URLSearchParams(searchParams);
@@ -27,8 +30,13 @@ function AlumnosContent() {
 
   const students = useQuery(api.students.listWithDetails, {
     status: filter === "all" ? undefined : filter,
+    modality: modalityFilter ?? undefined,
   });
   const classes = useQuery(api.classes.list, {});
+  const filterSlot = useQuery(
+    api.timeSlots.get,
+    slotFilter ? { id: slotFilter as Id<"timeSlots"> } : "skip"
+  );
 
   const classMap = useMemo(() => {
     const map: Record<string, { name: string; bg: string; color: string }> = {};
@@ -47,10 +55,16 @@ function AlumnosContent() {
 
   const filtered = useMemo(() => {
     if (!students) return [];
-    if (!search.trim()) return students;
-    const q = search.toLowerCase();
-    return students.filter(s => s.name.toLowerCase().includes(q) || s.phone.includes(q));
-  }, [students, search]);
+    let result = students;
+    if (slotFilter) {
+      result = result.filter(s => s.timeSlotId === slotFilter || s.secondTimeSlotId === slotFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(s => s.name.toLowerCase().includes(q) || s.phone.includes(q));
+    }
+    return result;
+  }, [students, search, slotFilter]);
 
   return (
     <div style={{ fontFamily: "var(--font)" }}>
@@ -77,6 +91,33 @@ function AlumnosContent() {
             style={{ width: "100%", height: 44, borderRadius: 12, border: "1.5px solid var(--border)", background: "var(--surface)", padding: "0 14px 0 40px", fontFamily: "var(--font)", fontSize: 14, outline: "none", color: "var(--text-primary)", boxSizing: "border-box", transition: "border-color 0.15s ease, box-shadow 0.15s ease" }}
           />
         </div>
+        {/* Slot / class filter chips */}
+        {(slotFilter || modalityFilter) && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            {slotFilter && (
+              <button
+                onClick={() => setUrlParam("slot", "")}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: "var(--pool-light)", color: "var(--pool-blue)",
+                  border: "none", borderRadius: 99, padding: "6px 12px",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font)",
+                }}
+              >⏰ {filterSlot?.label ?? "Horario"} ✕</button>
+            )}
+            {modalityFilter && (
+              <button
+                onClick={() => setUrlParam("modality", "")}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: "var(--pool-light)", color: "var(--pool-blue)",
+                  border: "none", borderRadius: 99, padding: "6px 12px",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font)",
+                }}
+              >🏊 {classMap[modalityFilter]?.name ?? modalityFilter} ✕</button>
+            )}
+          </div>
+        )}
         {/* Filter */}
         <div style={{ paddingBottom: 12 }}>
           <SegmentedControl

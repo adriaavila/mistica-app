@@ -249,7 +249,7 @@ export const syncRealData = mutation({
         startTime: "16:30",
         endTime: "17:30",
       });
-      natacionClass = await ctx.db.get(newClassId);
+      natacionClass = (await ctx.db.get(newClassId))!;
     } else {
       await ctx.db.patch(natacionClass._id, {
         name: "LMV 4:30_5:30 pm",
@@ -275,7 +275,7 @@ export const syncRealData = mutation({
         maxCapacity: 20,
         modalities: ["natacion"],
       });
-      slotNat = await ctx.db.get(newSlotId);
+      slotNat = (await ctx.db.get(newSlotId))!;
     } else {
       await ctx.db.patch(slotNat._id, {
         label: "LMV 4:30–5:30 pm",

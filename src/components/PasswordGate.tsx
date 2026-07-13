@@ -1,9 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 
-const STORAGE_KEY = "mistica_auth_v1";
-const PASSWORD = "Mistica-Admin246";
-
 const MESSAGES = [
   { icon: "🏊", text: "Gestiona tus alumnos de natación" },
   { icon: "📋", text: "Controla la asistencia fácilmente" },
@@ -18,11 +15,15 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const [input, setInput] = useState("");
   const [error, setError] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [msgIndex, setMsgIndex] = useState(0);
   const [msgVisible, setMsgVisible] = useState(true);
 
   useEffect(() => {
-    setUnlocked(localStorage.getItem(STORAGE_KEY) === "true");
+    fetch("/api/auth/status")
+      .then((r) => r.json())
+      .then((d) => setUnlocked(Boolean(d.authed)))
+      .catch(() => setUnlocked(false));
   }, []);
 
   useEffect(() => {
@@ -37,16 +38,28 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     return () => clearInterval(interval);
   }, [unlocked]);
 
-  const submit = useCallback(() => {
-    if (input === PASSWORD) {
-      localStorage.setItem(STORAGE_KEY, "true");
-      setUnlocked(true);
-    } else {
-      setError(true);
-      setInput("");
-      setTimeout(() => setError(false), 800);
+  const submit = useCallback(async () => {
+    if (submitting || !input) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: input }),
+      });
+      if (res.ok) {
+        setUnlocked(true);
+        return;
+      }
+    } catch {
+      // fall through to error UI
+    } finally {
+      setSubmitting(false);
     }
-  }, [input]);
+    setError(true);
+    setInput("");
+    setTimeout(() => setError(false), 800);
+  }, [input, submitting]);
 
   if (unlocked === null) return null;
   if (unlocked) return <>{children}</>;
@@ -192,6 +205,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
 
         <button
           onClick={submit}
+          disabled={submitting}
           style={{
             width: "100%",
             marginTop: 16,
@@ -202,14 +216,15 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
             color: "#0284C7",
             fontSize: 16,
             fontWeight: 700,
-            cursor: "pointer",
+            cursor: submitting ? "default" : "pointer",
+            opacity: submitting ? 0.7 : 1,
             fontFamily: "var(--font)",
             transition: "opacity 0.15s",
           }}
           onMouseDown={(e) => (e.currentTarget.style.opacity = "0.85")}
           onMouseUp={(e) => (e.currentTarget.style.opacity = "1")}
         >
-          Entrar
+          {submitting ? "Entrando…" : "Entrar"}
         </button>
       </div>
 

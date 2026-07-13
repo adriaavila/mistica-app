@@ -1,11 +1,10 @@
 "use client";
-import { useEffect, useState, useMemo, Suspense } from "react";
+import { useEffect, useMemo, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import EmptyState from "@/components/ui/EmptyState";
-import BottomSheet from "@/components/ui/BottomSheet";
 import { todayStr, formatDate, getRelativeDays } from "@/lib/utils";
 import { Id } from "../../../../convex/_generated/dataModel";
 
@@ -42,137 +41,6 @@ function getAutoSlotId(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// History sheet for a single student
-// ──────────────────────────────────────────────────────────────────────────────
-function StudentHistorySheet({
-  studentId,
-  studentName,
-  onClose,
-}: {
-  studentId: Id<"students">;
-  studentName: string;
-  onClose: () => void;
-}) {
-  const records = useQuery(api.attendance.listByStudent, { studentId });
-
-  const grouped = useMemo(() => {
-    if (!records) return [];
-    const map = new Map<string, typeof records>();
-    for (const r of records) {
-      const month = r.date.substring(0, 7);
-      if (!map.has(month)) map.set(month, []);
-      map.get(month)!.push(r);
-    }
-    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [records]);
-
-  const totalPresent = records?.filter((r) => r.present).length ?? 0;
-  const totalAbsent = records?.filter((r) => !r.present).length ?? 0;
-  const rate =
-    records && records.length > 0
-      ? Math.round((totalPresent / records.length) * 100)
-      : null;
-
-  const MONTH_ES = [
-    "Enero","Febrero","Marzo","Abril","Mayo","Junio",
-    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
-  ];
-  const formatMonth = (m: string) => {
-    const [y, mo] = m.split("-");
-    return `${MONTH_ES[parseInt(mo) - 1]} ${y}`;
-  };
-
-  return (
-    <BottomSheet open onClose={onClose} title={`Historial · ${studentName}`}>
-      {/* Summary bar */}
-      {rate !== null && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--paid-green)" }}>{totalPresent}</div>
-              <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>PRESENTES</div>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--overdue-coral)" }}>{totalAbsent}</div>
-              <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>AUSENTES</div>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--pool-blue)" }}>{rate}%</div>
-              <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>ASISTENCIA</div>
-            </div>
-          </div>
-          {/* Progress bar */}
-          <div style={{ height: 8, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden" }}>
-            <div style={{
-              height: "100%", width: `${rate}%`, borderRadius: 99,
-              background: rate >= 70 ? "var(--paid-green)" : rate >= 50 ? "var(--pending-amber)" : "var(--overdue-coral)",
-              transition: "width 0.4s ease",
-            }} />
-          </div>
-        </div>
-      )}
-
-      {/* Records grouped by month */}
-      {!records ? (
-        <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-secondary)", fontSize: 14 }}>
-          Cargando...
-        </div>
-      ) : records.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "24px 0" }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>📅</div>
-          <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>Sin registros de asistencia aún</div>
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {grouped.map(([month, monthRecords]) => (
-            <div key={month}>
-              <div style={{
-                fontSize: 12, fontWeight: 700, color: "var(--text-secondary)",
-                textTransform: "uppercase", letterSpacing: "0.06em",
-                marginBottom: 10,
-              }}>
-                {formatMonth(month)}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {monthRecords.map((rec) => (
-                  <div key={rec._id} style={{
-                    display: "flex", alignItems: "center", gap: 12,
-                    padding: "10px 14px",
-                    background: rec.present ? "var(--paid-light)" : "var(--overdue-light)",
-                    borderRadius: 12,
-                  }}>
-                    <span style={{
-                      width: 28, height: 28, borderRadius: "50%",
-                      background: rec.present ? "var(--paid-green)" : "var(--overdue-coral)",
-                      color: "#fff", fontSize: 14, fontWeight: 700,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      flexShrink: 0,
-                    }}>
-                      {rec.present ? "✓" : "✗"}
-                    </span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
-                        {formatDate(rec.date, { weekday: "long", day: "numeric", month: "long" })}
-                      </div>
-                    </div>
-                    <span style={{
-                      fontSize: 12, fontWeight: 700,
-                      color: rec.present ? "var(--paid-green)" : "var(--overdue-coral)",
-                    }}>
-                      {rec.present ? "Presente" : "Ausente"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </BottomSheet>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
 // Main page
 // ──────────────────────────────────────────────────────────────────────────────
 function AsistenciaContent() {
@@ -182,10 +50,6 @@ function AsistenciaContent() {
   const date = searchParams.get("date") ?? todayStr();
   // null = auto-select; string = user picked explicitly
   const selectedSlotId = searchParams.get("slotId");
-  const [historyStudent, setHistoryStudent] = useState<{
-    id: Id<"students">;
-    name: string;
-  } | null>(null);
 
   const setScheduleParams = (nextDate: string, nextSlotId?: string | null) => {
     const params = new URLSearchParams(searchParams);
@@ -361,14 +225,12 @@ function AsistenciaContent() {
               >
                 <Avatar name={student.name} size={40} src={student.photo} />
 
-                {/* Name — tappable to open history */}
+                {/* Name — tappable to open the student profile */}
                 <button
                   type="button"
-                  aria-label={`Ver historial de ${student.name}`}
+                  aria-label={`Ver perfil de ${student.name}`}
                   style={{ flex: 1, minWidth: 0, cursor: "pointer", background: "transparent", border: "none", padding: 0, textAlign: "left", fontFamily: "var(--font)", borderRadius: 10 }}
-                  onClick={() =>
-                    setHistoryStudent({ id: student._id as Id<"students">, name: student.name })
-                  }
+                  onClick={() => router.push(`/alumnos/${student._id}`)}
                   onFocus={e => { e.currentTarget.style.boxShadow = "var(--shadow-focus)"; }}
                   onBlur={e => { e.currentTarget.style.boxShadow = "none"; }}
                 >
@@ -395,7 +257,7 @@ function AsistenciaContent() {
                       </span>
                     )}
                     <span style={{ fontSize: 11, color: "var(--pool-blue)", fontWeight: 600 }}>
-                      historial
+                      ver perfil ›
                     </span>
                   </span>
                   <span style={{ display: "block", fontSize: 12, color: isPresent ? "var(--paid-green)" : isAbsent ? "var(--overdue-coral)" : "var(--text-secondary)", marginTop: 2, fontWeight: isPresent || isAbsent ? 600 : 400 }}>
@@ -456,14 +318,6 @@ function AsistenciaContent() {
         )}
       </div>
 
-      {/* History sheet */}
-      {historyStudent && (
-        <StudentHistorySheet
-          studentId={historyStudent.id}
-          studentName={historyStudent.name}
-          onClose={() => setHistoryStudent(null)}
-        />
-      )}
     </div>
   );
 }

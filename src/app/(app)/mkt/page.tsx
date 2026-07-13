@@ -27,8 +27,8 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import styles from "./page.module.css";
 
+// Auth rides on the httpOnly session cookie (same-origin); no bearer token in the client.
 const AUTH_HEADERS = {
-  Authorization: "Bearer Mistica-Admin246",
   "Content-Type": "application/json",
 };
 const WAHA_SESSION_NAME = "default";

@@ -340,6 +340,17 @@ export default function HorariosPage() {
                   <span style={{ fontSize: 12, fontWeight: 700, color: capacityColor, minWidth: 52, textAlign: "right" }}>
                     {slot.studentCount ?? 0}/{slot.maxCapacity}
                   </span>
+                  <button
+                    type="button"
+                    aria-label={`Ver alumnos de ${slot.label}`}
+                    onClick={(e) => { e.stopPropagation(); router.push(`/alumnos?slot=${slot._id}`); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 4, flexShrink: 0,
+                      background: "var(--pool-light)", color: "var(--pool-blue)",
+                      border: "none", borderRadius: 99, padding: "5px 10px",
+                      fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font)",
+                    }}
+                  >👥 Alumnos</button>
                 </div>
 
                 {/* Modalities */}

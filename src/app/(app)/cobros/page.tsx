@@ -176,10 +176,7 @@ function WhatsAppModal({ payment, onClose, currency, wahaConnected }: {
       try {
         const res = await fetch("/api/payments/remind", {
           method: "POST",
-          headers: {
-            "Authorization": "Bearer Mistica-Admin246",
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone, message })
         });
         const data = await res.json();
@@ -387,10 +384,7 @@ function RecordatoriosModal({ onClose, currency, wahaConnected }: { onClose: () 
       try {
         const res = await fetch("/api/payments/remind", {
           method: "POST",
-          headers: {
-            "Authorization": "Bearer Mistica-Admin246",
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone, message })
         });
         const data = await res.json();
@@ -622,11 +616,7 @@ function CobrosContent() {
   };
 
   useEffect(() => {
-    fetch("/api/mkt/whatsapp/status", {
-      headers: {
-        Authorization: "Bearer Mistica-Admin246",
-      },
-    })
+    fetch("/api/mkt/whatsapp/status")
       .then((res) => res.json())
       .then((data) => {
         setWahaConnected(Boolean(data.online && data.status === "WORKING"));
@@ -656,7 +646,12 @@ function CobrosContent() {
         if (filter === "paid") return p.effectiveStatus === "paid";
         return true;
       })
-      .filter(p => monthFilter === "all" || p.dueDate.startsWith(monthFilter))
+      .filter(p => {
+        if (monthFilter === "all") return true;
+        // Monthly payments filter by their billing month (permits shift dueDate
+        // across month boundaries, so month is the stable key); others by dueDate.
+        return p.month ? p.month === monthFilter : p.dueDate.startsWith(monthFilter);
+      })
       .sort((a, b) => {
         const order = { overdue: 0, pending: 1, paid: 2 };
         const oa = order[a.effectiveStatus] ?? 1;
@@ -798,7 +793,7 @@ function CobrosContent() {
                     {payment.student?.name ?? "—"}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                    {payment.type === "enrollment" ? "Inscripción" : `Mensualidad${payment.month ? " " + payment.month : ""}`}
+                    {payment.type === "enrollment" ? "Inscripción" : `Mensualidad${payment.month ? " " + formatMonth(payment.month) : ""}`}
                   </div>
                   <div style={{
                     fontSize: 12, marginTop: 3, fontWeight: 600,
