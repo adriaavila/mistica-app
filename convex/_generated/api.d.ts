@@ -11,8 +11,10 @@
 import type * as appConfig from "../appConfig.js";
 import type * as attendance from "../attendance.js";
 import type * as classes from "../classes.js";
+import type * as crons from "../crons.js";
 import type * as marketing from "../marketing.js";
 import type * as payments from "../payments.js";
+import type * as paymentsLib from "../paymentsLib.js";
 import type * as permits from "../permits.js";
 import type * as products from "../products.js";
 import type * as sales from "../sales.js";
@@ -30,8 +32,10 @@ declare const fullApi: ApiFromModules<{
   appConfig: typeof appConfig;
   attendance: typeof attendance;
   classes: typeof classes;
+  crons: typeof crons;
   marketing: typeof marketing;
   payments: typeof payments;
+  paymentsLib: typeof paymentsLib;
   permits: typeof permits;
   products: typeof products;
   sales: typeof sales;

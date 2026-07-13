@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, MutationCtx, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { ensureCurrentMonthPayment } from "./paymentsLib";
 
 const DUPLICATE_STUDENT_NAME_ERROR = "Ya existe un alumno con ese nombre.";
 
@@ -59,38 +60,38 @@ export const listWithDetails = query({
 
     const today = new Date().toISOString().split("T")[0];
 
-    const result = await Promise.all(
-      students
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map(async (student) => {
-          const payments = await ctx.db
-            .query("payments")
-            .withIndex("by_student", (q) => q.eq("studentId", student._id))
-            .collect();
+    // Fetch payments and slots once, then group in memory (avoids per-student queries).
+    const studentIds = new Set(students.map((s) => s._id));
+    const allPayments = await ctx.db.query("payments").collect();
+    const monthlyByStudent = new Map<Id<"students">, (typeof allPayments)[number]>();
+    for (const p of allPayments) {
+      if (p.type !== "monthly" || !studentIds.has(p.studentId)) continue;
+      const cur = monthlyByStudent.get(p.studentId);
+      if (!cur || p.dueDate > cur.dueDate) monthlyByStudent.set(p.studentId, p);
+    }
 
-          const latestMonthly = payments
-            .filter((p) => p.type === "monthly")
-            .sort((a, b) => b.dueDate.localeCompare(a.dueDate))[0];
+    const allSlots = await ctx.db.query("timeSlots").collect();
+    const slotById = new Map(allSlots.map((s) => [s._id, s]));
 
-          let paymentStatus: "paid" | "pending" | "overdue" = "pending";
-          if (latestMonthly) {
-            if (latestMonthly.status === "paid") paymentStatus = "paid";
-            else if (latestMonthly.dueDate < today) paymentStatus = "overdue";
-            else paymentStatus = "pending";
-          }
+    return students
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((student) => {
+        const latestMonthly = monthlyByStudent.get(student._id) ?? null;
 
-          const timeSlot = await ctx.db.get(student.timeSlotId);
+        let paymentStatus: "paid" | "pending" | "overdue" = "pending";
+        if (latestMonthly) {
+          if (latestMonthly.status === "paid") paymentStatus = "paid";
+          else if (latestMonthly.dueDate < today) paymentStatus = "overdue";
+          else paymentStatus = "pending";
+        }
 
-          return {
-            ...student,
-            paymentStatus,
-            latestPayment: latestMonthly ?? null,
-            timeSlot,
-          };
-        })
-    );
-
-    return result;
+        return {
+          ...student,
+          paymentStatus,
+          latestPayment: latestMonthly,
+          timeSlot: slotById.get(student.timeSlotId) ?? null,
+        };
+      });
   },
 });
 
@@ -287,8 +288,14 @@ export const update = mutation({
         }
       }
     }
-    
+
     await ctx.db.patch(id, patch);
+
+    // Reactivating a withdrawn student re-anchors billing to the current month:
+    // withdrawal removed their pending months, so recreate this month if needed.
+    if (fields.status === "active" && existing.status === "withdrawn") {
+      await ensureCurrentMonthPayment(ctx, id);
+    }
   },
 });
 

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 
 export const listByDateAndSlot = query({
   args: { date: v.string(), timeSlotId: v.id("timeSlots") },
@@ -84,16 +85,21 @@ export const getStudentsForSlot = query({
 
     const today = new Date().toISOString().split("T")[0];
 
-    const enriched = await Promise.all(
-      activeStudents
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map(async (student) => {
-          const payments = await ctx.db
-            .query("payments")
-            .withIndex("by_student", (q) => q.eq("studentId", student._id))
-            .collect();
-          const monthly = payments
-            .filter((p) => p.type === "monthly")
+    // Group monthly payments for this roster once instead of querying per student.
+    const rosterIds = new Set(activeStudents.map((s) => s._id));
+    const allPayments = await ctx.db.query("payments").collect();
+    const monthlyByStudent = new Map<Id<"students">, typeof allPayments>();
+    for (const p of allPayments) {
+      if (p.type !== "monthly" || !rosterIds.has(p.studentId)) continue;
+      const arr = monthlyByStudent.get(p.studentId) ?? [];
+      arr.push(p);
+      monthlyByStudent.set(p.studentId, arr);
+    }
+
+    const enriched = activeStudents
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((student) => {
+          const monthly = (monthlyByStudent.get(student._id) ?? [])
             .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
           const unpaid = monthly.filter((p) => p.status !== "paid");
 
@@ -120,8 +126,7 @@ export const getStudentsForSlot = query({
             attendance: attendanceMap.get(student._id) ?? null,
             nextDue,
           };
-        })
-    );
+      });
 
     return enriched;
   },
@@ -152,23 +157,15 @@ export const getTodaySummary = query({
         s.modalities.some((m) => activeClassKeys.has(m))
     );
 
+    const allStudents = await ctx.db.query("students").collect();
+
     const result = await Promise.all(
       todaySlots
         .sort((a, b) => a.startTime.localeCompare(b.startTime))
         .map(async (slot) => {
-          const primaryStudents = await ctx.db
-            .query("students")
-            .withIndex("by_timeSlot", (q) => q.eq("timeSlotId", slot._id))
-            .collect();
-          const allStudents = await ctx.db.query("students").collect();
-          const secondaryStudents = allStudents.filter(
-            (s) => s.secondTimeSlotId === slot._id
+          const students = allStudents.filter(
+            (s) => s.timeSlotId === slot._id || s.secondTimeSlotId === slot._id
           );
-          const seen = new Set(primaryStudents.map((s) => s._id));
-          const students = [
-            ...primaryStudents,
-            ...secondaryStudents.filter((s) => !seen.has(s._id)),
-          ];
           const activeCount = students.filter(
             (s) => s.status === "active" || s.status === "suspended"
           ).length;

@@ -4,8 +4,10 @@ import { api } from "../../../convex/_generated/api";
 import { getGreeting, todayStr, formatCurrency } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function HomePage() {
+  const router = useRouter();
   const stats = useQuery(api.payments.getDashboardStats);
   const analytics = useQuery(api.payments.getAnalytics);
   const todaySlots = useQuery(api.attendance.getTodaySummary, { date: todayStr() });
@@ -204,8 +206,8 @@ export default function HomePage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {todaySlots.map(slot => (
                 <Link key={slot._id} href={`/asistencia?slotId=${slot._id}&date=${todayStr()}`} style={{ textDecoration: "none" }}>
-                  <div style={{ background: "var(--white)", borderRadius: 16, padding: "14px 16px", boxShadow: "var(--shadow-card)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div>
+                  <div style={{ background: "var(--white)", borderRadius: 16, padding: "14px 16px", boxShadow: "var(--shadow-card)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>{slot.label}</div>
                       <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{slot.startTime} – {slot.endTime}</div>
                     </div>
@@ -217,6 +219,16 @@ export default function HomePage() {
                         {slot.recorded ? "Tomada" : `/ ${slot.maxCapacity}`}
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      aria-label={`Ver alumnos de ${slot.label}`}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/alumnos?slot=${slot._id}`); }}
+                      style={{
+                        width: 38, height: 38, borderRadius: "50%", border: "none", flexShrink: 0,
+                        background: "var(--pool-light)", fontSize: 17, cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    >👥</button>
                   </div>
                 </Link>
               ))}

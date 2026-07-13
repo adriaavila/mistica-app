@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { ensureCurrentMonthPayment } from "./paymentsLib";
 
 export const list = query({
   args: { activeOnly: v.optional(v.boolean()) },
@@ -86,6 +87,7 @@ export const update = mutation({
       for (const student of students) {
         if (student.status === "withdrawn") {
           await ctx.db.patch(student._id, { status: "active" });
+          await ensureCurrentMonthPayment(ctx, student._id);
         }
       }
     }

@@ -7,6 +7,7 @@ import Avatar from "@/components/ui/Avatar";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import ConfirmSheet from "@/components/ui/ConfirmSheet";
 import SegmentedControl from "@/components/ui/SegmentedControl";
 import { MODALITY_LABELS, MODALITY_COLORS, formatDate, formatCurrency, getRelativeDays, formatMonth } from "@/lib/utils";
 import Link from "next/link";
@@ -100,7 +101,17 @@ function AddPaymentSheet({
             <label style={labelStyle}>Mes</label>
             <input
               type="month" value={month}
-              onChange={(e) => setMonth(e.target.value)}
+              onChange={(e) => {
+                const m = e.target.value;
+                setMonth(m);
+                // Keep dueDate inside the selected month; a mismatch here makes the
+                // next auto-generated payment skip a month.
+                if (m) {
+                  const day = parseInt(dueDate.slice(8), 10) || 1;
+                  const lastDay = new Date(parseInt(m.slice(0, 4)), parseInt(m.slice(5, 7)), 0).getDate();
+                  setDueDate(`${m}-${String(Math.min(day, lastDay)).padStart(2, "0")}`);
+                }
+              }}
               style={inputStyle}
             />
           </>
@@ -427,6 +438,7 @@ export default function StudentDetailPage() {
   const addPartialPayment = useMutation(api.payments.addPartialPayment);
   const markPending = useMutation(api.payments.markPending);
   const removeStudent = useMutation(api.students.remove);
+  const updateStudent = useMutation(api.students.update);
   const removePayment = useMutation(api.payments.remove);
   const permits = useQuery(api.permits.listByStudent, { studentId: id as Id<"students"> });
   const removePermit = useMutation(api.permits.remove);
@@ -438,6 +450,7 @@ export default function StudentDetailPage() {
   const [showAddPermit, setShowAddPermit] = useState(false);
   const [paySheetPaymentId, setPaySheetPaymentId] = useState<Id<"payments"> | null>(null);
   const [paySheetAmount, setPaySheetAmount] = useState(0);
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
 
   const currency = config?.currency ?? "Bs";
 
@@ -548,6 +561,24 @@ export default function StudentDetailPage() {
                   <span style={{ fontSize: 16 }}>📲</span> WhatsApp
                 </a>
               )}
+            </Card>
+
+            <Card padding="16px">
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Estado</div>
+              <SegmentedControl
+                fullWidth
+                options={[
+                  { value: "active", label: "Activo" },
+                  { value: "suspended", label: "Suspendido" },
+                  { value: "withdrawn", label: "Retirado" },
+                ]}
+                value={student.status}
+                onChange={(v) => {
+                  if (v === student.status) return;
+                  if (v === "withdrawn") setConfirmWithdraw(true);
+                  else updateStudent({ id: student._id, status: v as "active" | "suspended" });
+                }}
+              />
             </Card>
 
             {(() => {
@@ -773,6 +804,20 @@ export default function StudentDetailPage() {
         <PermitSheet
           studentId={student._id}
           onClose={() => setShowAddPermit(false)}
+        />
+      )}
+
+      {confirmWithdraw && (
+        <ConfirmSheet
+          open
+          title="Retirar alumno"
+          description={`${student.name} pasará a estado Retirado. Sus cobros pendientes no vencidos se eliminarán; los vencidos se conservarán.`}
+          confirmLabel="Retirar alumno"
+          danger
+          onConfirm={async () => {
+            await updateStudent({ id: student._id, status: "withdrawn" });
+          }}
+          onClose={() => setConfirmWithdraw(false)}
         />
       )}
 

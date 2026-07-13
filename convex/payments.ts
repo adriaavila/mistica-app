@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, MutationCtx, query } from "./_generated/server";
+import { dueDateForMonth, insertNextMonthlyPayment } from "./paymentsLib";
 
 export const listByStudent = query({
   args: { studentId: v.id("students") },
@@ -59,30 +60,7 @@ export const markPaid = mutation({
     });
 
     if (payment.type === "monthly") {
-      const student = await ctx.db.get(payment.studentId);
-      if (!student) return;
-      const enrollDay = new Date(student.enrollmentDate + "T00:00:00").getDate();
-      const currentDue = new Date(payment.dueDate + "T00:00:00");
-      const nextDue = new Date(currentDue.getFullYear(), currentDue.getMonth() + 1, 1);
-      const lastDay = new Date(nextDue.getFullYear(), nextDue.getMonth() + 1, 0).getDate();
-      nextDue.setDate(Math.min(enrollDay, lastDay));
-      const nextDueStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, "0")}-${String(nextDue.getDate()).padStart(2, "0")}`;
-      const nextMonthStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, "0")}`;
-      const existing = await ctx.db
-        .query("payments")
-        .withIndex("by_student", (q) => q.eq("studentId", payment.studentId))
-        .collect()
-        .then((ps) => ps.find((p) => p.type === "monthly" && p.month === nextMonthStr));
-      if (!existing) {
-        await ctx.db.insert("payments", {
-          studentId: payment.studentId,
-          type: "monthly",
-          amount: payment.amount,
-          dueDate: nextDueStr,
-          status: "pending",
-          month: nextMonthStr,
-        });
-      }
+      await insertNextMonthlyPayment(ctx, payment);
     }
   },
 });
@@ -109,30 +87,7 @@ export const addPartialPayment = mutation({
         paidAt: args.paidAt ?? today,
       });
       if (payment.type === "monthly") {
-        const student = await ctx.db.get(payment.studentId);
-        if (!student) return;
-        const enrollDay = new Date(student.enrollmentDate + "T00:00:00").getDate();
-        const currentDue = new Date(payment.dueDate + "T00:00:00");
-        const nextDue = new Date(currentDue.getFullYear(), currentDue.getMonth() + 1, 1);
-        const lastDay = new Date(nextDue.getFullYear(), nextDue.getMonth() + 1, 0).getDate();
-        nextDue.setDate(Math.min(enrollDay, lastDay));
-        const nextDueStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, "0")}-${String(nextDue.getDate()).padStart(2, "0")}`;
-        const nextMonthStr = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, "0")}`;
-        const existing = await ctx.db
-          .query("payments")
-          .withIndex("by_student", (q) => q.eq("studentId", payment.studentId))
-          .collect()
-          .then((ps) => ps.find((p) => p.type === "monthly" && p.month === nextMonthStr));
-        if (!existing) {
-          await ctx.db.insert("payments", {
-            studentId: payment.studentId,
-            type: "monthly",
-            amount: payment.amount,
-            dueDate: nextDueStr,
-            status: "pending",
-            month: nextMonthStr,
-          });
-        }
+        await insertNextMonthlyPayment(ctx, payment);
       }
     } else {
       await ctx.db.patch(args.id, {
@@ -343,47 +298,53 @@ for (const p of allPayments) {
   },
 });
 
+async function generateMonthlyPayments(ctx: MutationCtx, month: string) {
+  const activeStudents = await ctx.db
+    .query("students")
+    .withIndex("by_status", (q) => q.eq("status", "active"))
+    .collect();
+
+  const allClasses = await ctx.db.query("classes").collect();
+  const priceMap = Object.fromEntries(allClasses.map((c) => [c.key, c.price]));
+
+  const allPayments = await ctx.db.query("payments").collect();
+  const haveMonth = new Set(
+    allPayments
+      .filter((p) => p.type === "monthly" && p.month === month)
+      .map((p) => p.studentId)
+  );
+
+  let created = 0;
+  for (const student of activeStudents) {
+    if (haveMonth.has(student._id)) continue;
+    const price = priceMap[student.modality] ?? 0;
+    if (price === 0) continue;
+
+    await ctx.db.insert("payments", {
+      studentId: student._id,
+      type: "monthly",
+      amount: price,
+      dueDate: dueDateForMonth(month, student.enrollmentDate),
+      status: "pending",
+      month,
+    });
+    created++;
+  }
+  return { created };
+}
+
 export const generateMonthly = mutation({
   args: { month: v.string() },
-  handler: async (ctx, args) => {
-    const activeStudents = await ctx.db
-      .query("students")
-      .withIndex("by_status", (q) => q.eq("status", "active"))
-      .collect();
+  handler: async (ctx, args) => generateMonthlyPayments(ctx, args.month),
+});
 
-    const allClasses = await ctx.db.query("classes").collect();
-    const priceMap = Object.fromEntries(allClasses.map((c) => [c.key, c.price]));
-
-    const [year, month] = args.month.split("-").map(Number);
-    let created = 0;
-
-    for (const student of activeStudents) {
-      const existing = await ctx.db
-        .query("payments")
-        .withIndex("by_student", (q) => q.eq("studentId", student._id))
-        .collect()
-        .then((ps) => ps.find((p) => p.type === "monthly" && p.month === args.month));
-
-      if (existing) continue;
-
-      const price = priceMap[student.modality] ?? 0;
-      if (price === 0) continue;
-
-      const enrollDay = new Date(student.enrollmentDate + "T00:00:00").getDate();
-      const lastDay = new Date(year, month, 0).getDate();
-      const dueDate = `${args.month}-${String(Math.min(enrollDay, lastDay)).padStart(2, "0")}`;
-
-      await ctx.db.insert("payments", {
-        studentId: student._id,
-        type: "monthly",
-        amount: price,
-        dueDate,
-        status: "pending",
-        month: args.month,
-      });
-      created++;
-    }
-    return { created };
+// Cron entrypoint: generate the current calendar month's payments.
+export const generateCurrentMonthInternal = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return generateMonthlyPayments(ctx, month);
   },
 });
 
@@ -458,18 +419,29 @@ export const listOverdue = query({
   },
 });
 
+async function markOverdue(ctx: MutationCtx) {
+  const today = new Date().toISOString().split("T")[0];
+  const pending = await ctx.db
+    .query("payments")
+    .withIndex("by_status", (q) => q.eq("status", "pending"))
+    .collect();
+  let updated = 0;
+  for (const p of pending) {
+    if (p.dueDate < today) {
+      await ctx.db.patch(p._id, { status: "overdue" });
+      updated++;
+    }
+  }
+  return { updated };
+}
+
 export const updateOverdueStatuses = mutation({
   args: {},
-  handler: async (ctx) => {
-    const today = new Date().toISOString().split("T")[0];
-    const pending = await ctx.db
-      .query("payments")
-      .withIndex("by_status", (q) => q.eq("status", "pending"))
-      .collect();
-    for (const p of pending) {
-      if (p.dueDate < today) {
-        await ctx.db.patch(p._id, { status: "overdue" });
-      }
-    }
-  },
+  handler: async (ctx) => markOverdue(ctx),
+});
+
+// Cron entrypoint: flip pending → overdue for past-due payments.
+export const markOverdueInternal = internalMutation({
+  args: {},
+  handler: async (ctx) => markOverdue(ctx),
 });
