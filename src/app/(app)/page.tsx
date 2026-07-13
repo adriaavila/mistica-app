@@ -213,10 +213,10 @@ export default function HomePage() {
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: 20, fontWeight: 800, color: slot.recorded ? "var(--paid-green)" : "var(--pool-blue)" }}>
-                        {slot.recorded ? "✓" : `${slot.activeStudents}`}
+                        {slot.presentCount}/{slot.activeStudents}
                       </div>
                       <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-                        {slot.recorded ? "Tomada" : `/ ${slot.maxCapacity}`}
+                        {slot.recorded ? "asistieron" : "por tomar"}
                       </div>
                     </div>
                     <button
