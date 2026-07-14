@@ -5,7 +5,7 @@ import { api } from "../../../../convex/_generated/api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import EmptyState from "@/components/ui/EmptyState";
-import { todayStr, formatDate, getRelativeDays } from "@/lib/utils";
+import { todayStr, formatDate, getRelativeDays, MODALITY_SHORT, MODALITY_COLORS } from "@/lib/utils";
 import { Id } from "../../../../convex/_generated/dataModel";
 
 // Pick the best slot for today based on current clock time
@@ -244,6 +244,18 @@ function AsistenciaContent() {
                     opacity: student.status === "suspended" ? 0.7 : 1,
                   }}>
                     {student.name}
+                    {MODALITY_SHORT[student.modality] && (
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: MODALITY_COLORS[student.modality]?.color ?? "var(--text-secondary)",
+                        background: MODALITY_COLORS[student.modality]?.bg ?? "var(--surface-2)",
+                        borderRadius: 6,
+                        padding: "2px 6px",
+                      }}>
+                        {MODALITY_SHORT[student.modality]}
+                      </span>
+                    )}
                     {student.status === "suspended" && (
                       <span style={{
                         fontSize: 10,
