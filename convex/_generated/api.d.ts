@@ -17,6 +17,7 @@ import type * as payments from "../payments.js";
 import type * as paymentsLib from "../paymentsLib.js";
 import type * as permits from "../permits.js";
 import type * as products from "../products.js";
+import type * as repairs from "../repairs.js";
 import type * as sales from "../sales.js";
 import type * as seed from "../seed.js";
 import type * as students from "../students.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   paymentsLib: typeof paymentsLib;
   permits: typeof permits;
   products: typeof products;
+  repairs: typeof repairs;
   sales: typeof sales;
   seed: typeof seed;
   students: typeof students;

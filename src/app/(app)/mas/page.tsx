@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -243,6 +243,8 @@ const inputStyle: React.CSSProperties = {
 export default function MasPage() {
   const config = useQuery(api.appConfig.getAll);
   const classes = useQuery(api.classes.list, {});
+  const timeSlots = useQuery(api.timeSlots.list, {});
+  const allStudents = useQuery(api.students.listWithDetails, {});
   const todaySlots = useQuery(api.attendance.getTodaySummary, { date: todayStr() });
   const setConfig = useMutation(api.appConfig.set);
   const createClass = useMutation(api.classes.create);
@@ -251,6 +253,17 @@ export default function MasPage() {
 
   const [editing, setEditing] = useState<ClassDoc | null | "new">(null);
   const [saving, setSaving] = useState(false);
+  const [expandedSlotId, setExpandedSlotId] = useState<Id<"timeSlots"> | null>(null);
+
+  const slotsByModality = useMemo(() => {
+    const map: Record<string, NonNullable<typeof timeSlots>> = {};
+    timeSlots?.forEach((slot) => {
+      slot.modalities.forEach((m) => {
+        (map[m] ??= []).push(slot);
+      });
+    });
+    return map;
+  }, [timeSlots]);
 
   const [editingAlert, setEditingAlert] = useState(false);
   const [editAlertValue, setEditAlertValue] = useState("");
@@ -375,57 +388,119 @@ export default function MasPage() {
               </div>
             ) : (
               classes.map((cls, idx) => {
+                const classSlots = slotsByModality[cls.key] ?? [];
                 return (
                   <div key={cls._id}>
                     {idx > 0 && <div style={{ height: 1, background: "var(--border)", margin: "0 16px" }} />}
-                    <div style={{ display: "flex", alignItems: "center", opacity: cls.isActive ? 1 : 0.6 }}>
-                      <button
-                        type="button"
-                        onClick={() => setEditing(cls)}
-                        style={{
-                          flex: 1,
-                          minWidth: 0,
-                          padding: "14px 0 14px 16px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 14,
-                          background: "transparent",
-                          border: "none",
-                          cursor: "pointer",
-                          fontFamily: "var(--font)",
-                          textAlign: "left",
-                        }}
-                      >
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{cls.name}</span>
-                            {!cls.isActive && (
-                              <span style={{
-                                fontSize: 10, fontWeight: 700, color: "var(--text-secondary)",
-                                background: "var(--surface-2)", borderRadius: 6, padding: "2px 6px",
-                              }}>Inactiva</span>
-                            )}
+                    <div style={{ opacity: cls.isActive ? 1 : 0.6 }}>
+                      <div style={{ display: "flex", alignItems: "center" }}>
+                        <button
+                          type="button"
+                          onClick={() => setEditing(cls)}
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            padding: "14px 0 14px 16px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 14,
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            fontFamily: "var(--font)",
+                            textAlign: "left",
+                          }}
+                        >
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{cls.name}</span>
+                              {!cls.isActive && (
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700, color: "var(--text-secondary)",
+                                  background: "var(--surface-2)", borderRadius: 6, padding: "2px 6px",
+                                }}>Inactiva</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                              {cls.description} · {cls.days.map(d => DAY_LABELS[d] ?? d).join(", ")} ({cls.startTime} – {cls.endTime})
+                            </div>
                           </div>
-                          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                            {cls.description} · {cls.days.map(d => DAY_LABELS[d] ?? d).join(", ")} ({cls.startTime} – {cls.endTime})
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--pool-blue)" }}>${cls.price}</span>
+                            <span style={{ color: "var(--text-secondary)", fontSize: 16 }}>›</span>
                           </div>
+                        </button>
+                        {classSlots.length === 0 && (
+                          <Link
+                            href={`/alumnos?modality=${cls.key}`}
+                            aria-label={`Ver alumnos de ${cls.name}`}
+                            style={{
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              width: 36, height: 36, borderRadius: "50%", margin: "0 12px 0 4px",
+                              background: "var(--pool-light)", fontSize: 16, textDecoration: "none",
+                              flexShrink: 0,
+                            }}
+                          >👥</Link>
+                        )}
+                      </div>
+
+                      {/* Real horarios (timeSlots) for this class */}
+                      {classSlots.length > 0 && (
+                        <div style={{ padding: "0 16px 14px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+                          {classSlots.map(slot => {
+                            const expanded = expandedSlotId === slot._id;
+                            const slotStudents = (allStudents ?? []).filter(
+                              s => s.timeSlotId === slot._id || s.secondTimeSlotId === slot._id
+                            );
+                            return (
+                              <div key={slot._id} style={{ background: "var(--surface)", borderRadius: 10 }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px" }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedSlotId(expanded ? null : slot._id)}
+                                    style={{
+                                      flex: 1, minWidth: 0, textAlign: "left", background: "transparent",
+                                      border: "none", cursor: "pointer", fontFamily: "var(--font)",
+                                    }}
+                                  >
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                                      {slot.label} {!slot.isActive && "· Inactivo"}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                                      {slot.days.map(d => DAY_LABELS[d] ?? d).join(", ")} · {slot.startTime}–{slot.endTime} · {slotStudents.length} alumno{slotStudents.length === 1 ? "" : "s"}
+                                    </div>
+                                  </button>
+                                  <Link
+                                    href={`/alumnos?slot=${slot._id}`}
+                                    aria-label={`Ver alumnos de ${slot.label}`}
+                                    style={{
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      width: 30, height: 30, borderRadius: "50%", marginLeft: 8,
+                                      background: "var(--pool-light)", fontSize: 14, textDecoration: "none",
+                                      flexShrink: 0,
+                                    }}
+                                  >👥</Link>
+                                </div>
+                                {expanded && (
+                                  <div style={{ padding: "0 10px 10px" }}>
+                                    {slotStudents.length === 0 ? (
+                                      <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Sin alumnos en este horario.</div>
+                                    ) : (
+                                      slotStudents.map(s => (
+                                        <div key={s._id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 12 }}>
+                                          <span style={{ color: "var(--text-primary)" }}>{s.name}</span>
+                                          <span style={{ color: "var(--text-secondary)" }}>{s.status !== "active" ? s.status : ""}</span>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--pool-blue)" }}>${cls.price}</span>
-                          <span style={{ color: "var(--text-secondary)", fontSize: 16 }}>›</span>
-                        </div>
-                      </button>
-                      <Link
-                        href={`/alumnos?modality=${cls.key}`}
-                        aria-label={`Ver alumnos de ${cls.name}`}
-                        style={{
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          width: 36, height: 36, borderRadius: "50%", margin: "0 12px 0 4px",
-                          background: "var(--pool-light)", fontSize: 16, textDecoration: "none",
-                          flexShrink: 0,
-                        }}
-                      >👥</Link>
+                      )}
                     </div>
                   </div>
                 );
