@@ -39,37 +39,37 @@ describe("marketing campaigns", () => {
       // Sibling 1 (Natacion): Payer phone set, Guardian phone set, active
       await ctx.db.insert("students", {
         name: "Carlos Perez",
-        phone: "04121111111",
+        phone: "71111111",
         dob: "2015-05-10",
         enrollmentDate: "2026-01-01",
         modality: "lmv",
         timeSlotId,
         status: "active",
         createdAt: Date.now(),
-        payerPhone: "04129999999", // Sibling group key (primary)
-        guardianPhone: "04128888888",
+        payerPhone: "79999999", // Sibling group key (primary)
+        guardianPhone: "78888888",
         guardianName: "Marta Perez",
       });
 
       // Sibling 2 (Natacion): Same payer phone, active
       await ctx.db.insert("students", {
         name: "Maria Perez",
-        phone: "04121111111",
+        phone: "71111111",
         dob: "2017-08-15",
         enrollmentDate: "2026-01-01",
         modality: "mj",
         timeSlotId,
         status: "active",
         createdAt: Date.now(),
-        payerPhone: "04129999999", // Same phone as sibling 1
-        guardianPhone: "04128888888",
+        payerPhone: "79999999", // Same phone as sibling 1
+        guardianPhone: "78888888",
         guardianName: "Marta Perez",
       });
 
       // Aquagym Student: active, only phone field populated
       await ctx.db.insert("students", {
         name: "Lucia Gomez",
-        phone: "04142222222",
+        phone: "72222222",
         dob: "1985-04-12",
         enrollmentDate: "2026-02-01",
         modality: "aquagym3x",
@@ -81,7 +81,7 @@ describe("marketing campaigns", () => {
       // Inactive Student: should be skipped
       await ctx.db.insert("students", {
         name: "Juan Inactivo",
-        phone: "04123333333",
+        phone: "73333333",
         dob: "2016-09-20",
         enrollmentDate: "2026-01-01",
         modality: "lmv",
@@ -119,8 +119,8 @@ describe("marketing campaigns", () => {
       campaignId,
     });
     // Expected preparedCount: 2 groups
-    // Group 1: Carlos Perez & Maria Perez (normalized payerPhone: 584129999999)
-    // Group 2: Lucia Gomez (normalized phone: 584142222222)
+    // Group 1: Carlos Perez & Maria Perez (normalized payerPhone: 59179999999)
+    // Group 2: Lucia Gomez (normalized phone: 59172222222)
     expect(prepResult.preparedCount).toBe(2);
 
     // Verify campaign status updated to ready
@@ -132,7 +132,7 @@ describe("marketing campaigns", () => {
     expect(messages.length).toBe(2);
 
     // Check sibling group message (Natacion template, merged studentName, status pending)
-    const siblingMsg = messages.find(m => m.normalizedPhone === "584129999999");
+    const siblingMsg = messages.find(m => m.normalizedPhone === "59179999999");
     expect(siblingMsg).toBeDefined();
     expect(siblingMsg?.recipientName).toBe("Marta Perez");
     expect(siblingMsg?.studentName).toBe("Carlos Perez y Maria Perez");
@@ -142,7 +142,7 @@ describe("marketing campaigns", () => {
     expect(siblingMsg?.message).toContain("Gracias por acompañar el proceso de");
 
     // Check Aquagym message (Aquagym template, status pending)
-    const aqMsg = messages.find(m => m.normalizedPhone === "584142222222");
+    const aqMsg = messages.find(m => m.normalizedPhone === "59172222222");
     expect(aqMsg).toBeDefined();
     expect(aqMsg?.recipientName).toBe("Lucia Gomez");
     expect(aqMsg?.program).toBe("aquagym");

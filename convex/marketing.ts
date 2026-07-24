@@ -14,25 +14,10 @@ type RecipientGroup = {
   studentId: Id<"students">;
 };
 
-// Helper: Normalize phones to international format
-export function normalizePhone(phone: string): string | null {
-  let cleaned = phone.replace(/\D/g, "");
-  if (!cleaned) return null;
-
-  // If it starts with '0', assume Venezuelan and replace with '58'
-  if (cleaned.startsWith("0")) {
-    cleaned = "58" + cleaned.slice(1);
-  } else if (cleaned.length === 10 && (cleaned.startsWith("4") || cleaned.startsWith("2"))) {
-    // If it is 10 digits and starts with 4 or 2, it might be a Venezuelan number without leading 0
-    cleaned = "58" + cleaned;
-  } else if (cleaned.length === 8 && (cleaned.startsWith("7") || cleaned.startsWith("6"))) {
-    // If it is 8 digits and starts with 7 or 6, it might be Bolivian number without country code 591
-    cleaned = "591" + cleaned;
-  }
-
-  if (cleaned.length < 8) return null;
-  return cleaned;
-}
+// Phone normalization lives in ./lib/phone.ts (Bolivia only). Re-exported so
+// existing callers and tests keep their import path.
+export { normalizePhone } from "./lib/phone";
+import { normalizePhone } from "./lib/phone";
 
 // Helper: Map modality to program segment
 function getProgramFromModality(modality: string): "natacion" | "aquagym" | "unknown" {

@@ -25,16 +25,24 @@ export default function BottomSheet({ open, onClose, title, children }: {
   if (!open) return null;
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+    <div
+      className="flex flex-col justify-end lg:items-center lg:justify-center"
+      style={{ position: "fixed", inset: 0, zIndex: 100 }}
+    >
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }} onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} style={{
-        position: "relative", background: "var(--white)",
-        borderRadius: "28px 28px 0 0",
-        maxHeight: "92vh", overflowY: "auto", overscrollBehavior: "contain",
-        maxWidth: 480, width: "100%", margin: "0 auto",
-        boxShadow: "0 -8px 40px rgba(0,0,0,0.15)",
-      }}>
-        <div style={{ padding: "12px 20px 0", display: "flex", justifyContent: "center" }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="rounded-t-[28px] max-h-[92vh] lg:max-h-[85vh] lg:rounded-[24px]"
+        style={{
+          position: "relative", background: "var(--white)",
+          overflowY: "auto", overscrollBehavior: "contain",
+          maxWidth: 480, width: "100%", margin: "0 auto",
+          boxShadow: "0 -8px 40px rgba(0,0,0,0.15)",
+        }}
+      >
+        <div className="lg:hidden" style={{ padding: "12px 20px 0", display: "flex", justifyContent: "center" }}>
           <div style={{ width: 36, height: 4, background: "var(--border)", borderRadius: 99 }} />
         </div>
         <div style={{ padding: "14px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>

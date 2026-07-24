@@ -3,14 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-
-const TABS = [
-  { href: "/",           label: "Inicio",     icon: "⊞" },
-  { href: "/alumnos",    label: "Alumnos",    icon: "◎" },
-  { href: "/cobros",     label: "Cobros",     icon: "◈", badge: true },
-  { href: "/asistencia", label: "Asistencia", icon: "◷" },
-  { href: "/mas",        label: "Más",        icon: "≡" },
-];
+import { NAV_ITEMS, isNavItemActive } from "./nav-items";
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -18,7 +11,7 @@ export default function BottomNav() {
   const overdueCount = stats?.overdueCount ?? 0;
 
   return (
-    <nav style={{
+    <nav className="lg:hidden" style={{
       position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
       width: "100%", maxWidth: 480,
       background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)",
@@ -27,8 +20,8 @@ export default function BottomNav() {
       padding: "6px 4px calc(10px + env(safe-area-inset-bottom))",
       zIndex: 50, boxShadow: "0 -2px 20px rgba(0,0,0,0.06)",
     }}>
-      {TABS.map(tab => {
-        const active = tab.href === "/" ? pathname === "/" : pathname === tab.href || pathname.startsWith(tab.href + "/");
+      {NAV_ITEMS.map(tab => {
+        const active = isNavItemActive(pathname, tab.href);
         const showBadge = tab.badge && overdueCount > 0;
         return (
           <Link key={tab.href} href={tab.href} style={{

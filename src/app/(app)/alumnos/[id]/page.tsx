@@ -12,12 +12,7 @@ import SegmentedControl from "@/components/ui/SegmentedControl";
 import { MODALITY_LABELS, MODALITY_COLORS, formatDate, formatCurrency, getRelativeDays, formatMonth } from "@/lib/utils";
 import Link from "next/link";
 import { Id } from "../../../../../convex/_generated/dataModel";
-
-function buildWhatsAppUrl(phone: string, message: string) {
-  let num = phone.replace(/\D/g, "");
-  if (num.startsWith("0")) num = "58" + num.slice(1);
-  return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
-}
+import { buildWhatsAppUrl } from "../../../../../convex/lib/phone";
 
 function AddPaymentSheet({
   studentId,

@@ -134,6 +134,9 @@ export default defineSchema({
     startedAt: v.optional(v.number()),
     finishedAt: v.optional(v.number()),
     createdBy: v.optional(v.string()),
+    // Nothing sends until a human approves. Unset = the scheduler will not pick it up.
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.string()),
   })
     .index("by_status", ["status"])
     .index("by_type", ["type"]),
@@ -162,4 +165,89 @@ export default defineSchema({
     .index("by_campaign", ["campaignId"])
     .index("by_campaign_phone", ["campaignId", "normalizedPhone"])
     .index("by_status", ["status"]),
+
+  // --- CRM ---
+
+  contacts: defineTable({
+    waChatId: v.string(),          // "59171234567@c.us" — join key to WhatsApp
+    normalizedPhone: v.string(),
+    displayName: v.string(),       // pushName from WAHA, editable
+    kind: v.union(v.literal("cliente"), v.literal("interesado"), v.literal("otro")),
+    linkedStudentIds: v.array(v.id("students")),
+    stage: v.optional(v.union(     // interesados pipeline; unset for clientes
+      v.literal("nuevo"),
+      v.literal("contactado"),
+      v.literal("clase_prueba"),
+      v.literal("inscrito"),
+      v.literal("perdido")
+    )),
+    lostReason: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+    notes: v.optional(v.string()),
+    source: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_chatId", ["waChatId"])
+    .index("by_phone", ["normalizedPhone"])
+    .index("by_kind", ["kind"])
+    .index("by_kind_stage", ["kind", "stage"]),
+
+  conversations: defineTable({
+    contactId: v.id("contacts"),
+    waChatId: v.string(),
+    status: v.union(v.literal("abierta"), v.literal("pospuesta"), v.literal("cerrada")),
+    lastMessageAt: v.number(),
+    lastMessagePreview: v.string(),
+    // Explicit: comparing lastInboundAt to lastMessageAt is ambiguous when a
+    // reply lands in the same millisecond.
+    lastMessageDirection: v.union(v.literal("in"), v.literal("out")),
+    lastInboundAt: v.optional(v.number()),
+    unreadCount: v.number(),
+    humanTakeoverUntil: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_contact", ["contactId"])
+    .index("by_chatId", ["waChatId"])
+    .index("by_status_recent", ["status", "lastMessageAt"]),
+
+  messages: defineTable({
+    conversationId: v.id("conversations"),
+    waMessageId: v.string(),       // WAHA payload.id — idempotency key
+    direction: v.union(v.literal("in"), v.literal("out")),
+    authorType: v.union(
+      v.literal("contacto"),
+      v.literal("humano"),
+      v.literal("agente"),
+      v.literal("sistema")
+    ),
+    body: v.string(),
+    timestamp: v.number(),         // ms
+    hasMedia: v.boolean(),
+    storageId: v.optional(v.id("_storage")),
+    mimeType: v.optional(v.string()),
+    mediaError: v.optional(v.string()),
+    ack: v.optional(v.number()),   // 1 sent, 2 delivered, 3 read
+    sendError: v.optional(v.string()),
+    campaignId: v.optional(v.id("marketingCampaigns")),
+  })
+    .index("by_conversation", ["conversationId", "timestamp"])
+    .index("by_waMessageId", ["waMessageId"]),
+
+  receipts: defineTable({
+    messageId: v.id("messages"),
+    contactId: v.id("contacts"),
+    storageId: v.id("_storage"),
+    status: v.union(v.literal("pendiente"), v.literal("aprobado"), v.literal("rechazado")),
+    paymentId: v.optional(v.id("payments")),
+    studentId: v.optional(v.id("students")),
+    declaredAmount: v.optional(v.number()),
+    reference: v.optional(v.string()),
+    reviewNote: v.optional(v.string()),
+    receivedAt: v.number(),
+    reviewedAt: v.optional(v.number()),
+  })
+    .index("by_status", ["status", "receivedAt"])
+    .index("by_contact", ["contactId"])
+    .index("by_payment", ["paymentId"]),
 });

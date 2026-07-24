@@ -10,12 +10,7 @@ import ConfirmSheet from "@/components/ui/ConfirmSheet";
 import { formatCurrency, formatDate, getRelativeDays, formatMonth } from "@/lib/utils";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { Suspense } from "react";
-
-function buildWhatsAppUrl(phone: string, message: string) {
-  let num = phone.replace(/\D/g, "");
-  if (num.startsWith("0")) num = "58" + num.slice(1);
-  return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
-}
+import { buildWhatsAppUrl } from "../../../../convex/lib/phone";
 
 function getLast6Months() {
   const months = [];
