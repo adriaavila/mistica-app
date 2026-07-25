@@ -2,7 +2,9 @@ import "server-only";
 
 // Read from env; the literal is a dev fallback so existing deploys keep working
 // until ADMIN_PASSWORD is set. Set ADMIN_PASSWORD in Vercel/Convex env and rotate.
-const PASSWORD = process.env.ADMIN_PASSWORD ?? "Mistica-Admin246";
+// `||` (not `??`) so an accidentally empty-string env var also falls back
+// instead of silently locking every user out (happened in prod 2026-07-25).
+const PASSWORD = process.env.ADMIN_PASSWORD || "Mistica-Admin246";
 
 export const SESSION_COOKIE = "mistica_session";
 
