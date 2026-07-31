@@ -1,10 +1,6 @@
 import "server-only";
 
-// Read from env; the literal is a dev fallback so existing deploys keep working
-// until ADMIN_PASSWORD is set. Set ADMIN_PASSWORD in Vercel/Convex env and rotate.
-// `||` (not `??`) so an accidentally empty-string env var also falls back
-// instead of silently locking every user out (happened in prod 2026-07-25).
-const PASSWORD = process.env.ADMIN_PASSWORD || "Mistica-Admin246";
+const PASSWORD = process.env.ADMIN_PASSWORD;
 
 export const SESSION_COOKIE = "mistica_session";
 
@@ -19,7 +15,7 @@ function readCookie(request: Request, name: string): string | null {
 }
 
 export function isPasswordValid(candidate: string): boolean {
-  return candidate === PASSWORD;
+  return Boolean(PASSWORD) && candidate === PASSWORD;
 }
 
 /**
@@ -28,16 +24,16 @@ export function isPasswordValid(candidate: string): boolean {
  */
 export function verifyAuth(request: Request): boolean {
   const cookie = readCookie(request, SESSION_COOKIE);
-  if (cookie && cookie === PASSWORD) return true;
+  if (PASSWORD && cookie === PASSWORD) return true;
 
   const authHeader = request.headers.get("authorization");
   if (authHeader) {
     const token = authHeader.replace(/^bearer\s+/i, "").trim();
-    if (token === PASSWORD) return true;
+    if (PASSWORD && token === PASSWORD) return true;
   }
 
   const xPassword = request.headers.get("x-app-password");
-  if (xPassword && xPassword.trim() === PASSWORD) return true;
+  if (PASSWORD && xPassword && xPassword.trim() === PASSWORD) return true;
 
   return false;
 }
