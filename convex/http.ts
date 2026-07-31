@@ -5,6 +5,11 @@ import { verifyHmacSha512 } from "./lib/hmac";
 
 const http = httpRouter();
 
+async function sha256(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 http.route({
   path: "/waha/webhook",
   method: "POST",
@@ -22,32 +27,33 @@ http.route({
       return new Response("unauthorized", { status: 401 });
     }
 
-    let body: { event?: string; session?: string; payload?: Record<string, unknown> };
+    let body: { id?: string; event?: string; session?: string; payload?: Record<string, unknown> };
     try {
       body = JSON.parse(raw);
     } catch {
       return new Response("bad request", { status: 400 });
     }
 
-    // WAHA is shared with another tenant; ignore anything that is not our session.
-    if (body.session !== process.env.WAHA_SESSION) {
-      return new Response(null, { status: 200 });
-    }
+    if (!body.event || !body.session) return new Response("bad request", { status: 400 });
 
-    switch (body.event) {
-      case "message":
-        await ctx.runMutation(internal.crm.ingestInbound, { payload: body.payload ?? {} });
-        break;
-      case "message.ack":
-        await ctx.runMutation(internal.crm.updateAck, { payload: body.payload ?? {} });
-        break;
-      case "session.status":
-        console.log("[waha] session.status", JSON.stringify(body.payload));
-        break;
-    }
+    const requestId = request.headers.get("x-webhook-request-id")
+      ?? request.headers.get("x-request-id")
+      ?? undefined;
+    const payloadId = body.payload?.id;
+    const eventId = requestId
+      ?? body.id
+      ?? (typeof payloadId === "string" ? payloadId : await sha256(raw));
+    const recorded = await ctx.runMutation(internal.whatsapp.recordAuthenticatedEvent, {
+      sessionId: body.session,
+      eventType: body.event,
+      providerEventId: `${body.event}:${eventId}`,
+      requestId,
+      payload: body.payload ?? {},
+    });
 
-    // Always 200 on an authenticated, understood webhook so WAHA stops retrying.
-    return new Response(null, { status: 200 });
+    // The WAHA instance is shared. Authenticated events for sessions not owned
+    // by this pilot are intentionally ignored without leaking tenant details.
+    return new Response(null, { status: recorded ? 202 : 204 });
   }),
 });
 

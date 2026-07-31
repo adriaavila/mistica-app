@@ -7,22 +7,23 @@ import { internalAction } from "./_generated/server";
  * src/lib/server/waha.ts — only sends need to run without a browser.
  */
 
-function config() {
+function config(sessionOverride?: string) {
   const baseUrl = process.env.WAHA_BASE_URL?.trim().replace(/\/$/, "");
   const apiKey = process.env.WAHA_API_KEY?.trim();
   const session = process.env.WAHA_SESSION?.trim();
   if (!baseUrl || !apiKey || !session) {
     throw new Error("WAHA_BASE_URL, WAHA_API_KEY and WAHA_SESSION must be set in Convex env");
   }
-  return { baseUrl, apiKey, session };
+  return { baseUrl, apiKey, session: sessionOverride?.trim() || session };
 }
 
-async function post(path: string, payload: Record<string, unknown>) {
-  const { baseUrl, apiKey, session } = config();
+async function post(path: string, payload: Record<string, unknown>, sessionOverride?: string) {
+  const { baseUrl, apiKey, session } = config(sessionOverride);
   const res = await fetch(`${baseUrl}${path}`, {
     method: "POST",
     headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({ session, ...payload }),
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) {
     // Body may carry the reason but can also echo the payload — keep it short.
@@ -32,12 +33,18 @@ async function post(path: string, payload: Record<string, unknown>) {
 }
 
 export const sendText = internalAction({
-  args: { chatId: v.string(), text: v.string(), replyTo: v.optional(v.string()) },
-  handler: async (_ctx, { chatId, text, replyTo }) => {
+  args: {
+    chatId: v.string(),
+    text: v.string(),
+    id: v.optional(v.string()),
+    replyTo: v.optional(v.string()),
+    session: v.optional(v.string()),
+  },
+  handler: async (_ctx, { chatId, text, id, replyTo, session }) => {
     if (process.env.MKT_DRY_RUN === "true") {
       return { id: `dryrun:${Date.now()}`, dryRun: true };
     }
-    const res = await post("/api/sendText", { chatId, text, reply_to: replyTo });
+    const res = await post("/api/sendText", { chatId, text, id, reply_to: replyTo }, session);
     return { id: res.id, dryRun: false };
   },
 });
@@ -49,8 +56,9 @@ export const sendImage = internalAction({
     mimetype: v.string(),
     filename: v.optional(v.string()),
     caption: v.optional(v.string()),
+    session: v.optional(v.string()),
   },
-  handler: async (_ctx, { chatId, imageUrl, mimetype, filename, caption }) => {
+  handler: async (_ctx, { chatId, imageUrl, mimetype, filename, caption, session }) => {
     if (process.env.MKT_DRY_RUN === "true") {
       return { id: `dryrun:${Date.now()}`, dryRun: true };
     }
@@ -58,7 +66,18 @@ export const sendImage = internalAction({
       chatId,
       file: { mimetype, url: imageUrl, filename: filename ?? "imagen.jpg" },
       caption,
-    });
+    }, session);
     return { id: res.id, dryRun: false };
+  },
+});
+
+export const markAsRead = internalAction({
+  args: {
+    chatId: v.string(),
+    messageId: v.string(),
+    session: v.optional(v.string()),
+  },
+  handler: async (_ctx, { chatId, messageId, session }) => {
+    await post("/api/sendSeen", { chatId, messageIds: [messageId] }, session);
   },
 });

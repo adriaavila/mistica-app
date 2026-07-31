@@ -113,6 +113,50 @@ export default defineSchema({
     value: v.string(),
   }).index("by_key", ["key"]),
 
+  whatsappConnections: defineTable({
+    connectionId: v.string(),
+    provider: v.literal("waha"),
+    workspaceKey: v.string(),
+    wahaSessionId: v.string(),
+    phone: v.optional(v.string()),
+    status: v.string(),
+    lastWebhookAt: v.optional(v.number()),
+    lastInboundAt: v.optional(v.number()),
+    lastOutboundAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    connectedAt: v.optional(v.number()),
+    disconnectedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    metadata: v.optional(v.any()),
+  })
+    .index("by_connectionId", ["connectionId"])
+    .index("by_workspace", ["workspaceKey"])
+    .index("by_wahaSessionId", ["wahaSessionId"]),
+
+  whatsappRawEvents: defineTable({
+    // Optional keeps schema rollout compatible with any raw events written by
+    // an earlier deployment while all new events are connection-scoped.
+    connectionId: v.optional(v.string()),
+    providerEventId: v.string(),
+    requestId: v.optional(v.string()),
+    eventType: v.string(),
+    payload: v.any(),
+    status: v.union(
+      v.literal("PENDING"),
+      v.literal("PROCESSING"),
+      v.literal("PROCESSED"),
+      v.literal("FAILED"),
+      v.literal("SKIPPED")
+    ),
+    attempts: v.number(),
+    error: v.optional(v.string()),
+    receivedAt: v.number(),
+    processedAt: v.optional(v.number()),
+  })
+    .index("by_connection_event", ["connectionId", "providerEventId"])
+    .index("by_status_received", ["status", "receivedAt"]),
+
   marketingCampaigns: defineTable({
     name: v.string(),
     type: v.string(), // e.g. mothers_day
@@ -169,6 +213,7 @@ export default defineSchema({
   // --- CRM ---
 
   contacts: defineTable({
+    connectionId: v.optional(v.string()),
     waChatId: v.string(),          // "59171234567@c.us" — join key to WhatsApp
     normalizedPhone: v.string(),
     displayName: v.string(),       // pushName from WAHA, editable
@@ -189,11 +234,13 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_chatId", ["waChatId"])
+    .index("by_connection_chatId", ["connectionId", "waChatId"])
     .index("by_phone", ["normalizedPhone"])
     .index("by_kind", ["kind"])
     .index("by_kind_stage", ["kind", "stage"]),
 
   conversations: defineTable({
+    connectionId: v.optional(v.string()),
     contactId: v.id("contacts"),
     waChatId: v.string(),
     status: v.union(v.literal("abierta"), v.literal("pospuesta"), v.literal("cerrada")),
@@ -205,13 +252,22 @@ export default defineSchema({
     lastInboundAt: v.optional(v.number()),
     unreadCount: v.number(),
     humanTakeoverUntil: v.optional(v.number()),
+    ownershipState: v.optional(v.union(
+      v.literal("AGENT_ACTIVE"),
+      v.literal("HUMAN_ACTIVE"),
+      v.literal("PAUSED"),
+      v.literal("CLOSED")
+    )),
+    agentSummary: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_contact", ["contactId"])
     .index("by_chatId", ["waChatId"])
+    .index("by_connection_chatId", ["connectionId", "waChatId"])
     .index("by_status_recent", ["status", "lastMessageAt"]),
 
   messages: defineTable({
+    connectionId: v.optional(v.string()),
     conversationId: v.id("conversations"),
     waMessageId: v.string(),       // WAHA payload.id — idempotency key
     direction: v.union(v.literal("in"), v.literal("out")),
@@ -228,11 +284,19 @@ export default defineSchema({
     mimeType: v.optional(v.string()),
     mediaError: v.optional(v.string()),
     ack: v.optional(v.number()),   // 1 sent, 2 delivered, 3 read
+    sendStatus: v.optional(v.union(
+      v.literal("PENDING"),
+      v.literal("SENT"),
+      v.literal("AMBIGUOUS"),
+      v.literal("FAILED")
+    )),
+    sendAttemptedAt: v.optional(v.number()),
     sendError: v.optional(v.string()),
     campaignId: v.optional(v.id("marketingCampaigns")),
   })
     .index("by_conversation", ["conversationId", "timestamp"])
-    .index("by_waMessageId", ["waMessageId"]),
+    .index("by_waMessageId", ["waMessageId"])
+    .index("by_connection_waMessageId", ["connectionId", "waMessageId"]),
 
   receipts: defineTable({
     messageId: v.id("messages"),

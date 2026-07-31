@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as agent from "../agent.js";
 import type * as appConfig from "../appConfig.js";
 import type * as attendance from "../attendance.js";
 import type * as classes from "../classes.js";
@@ -28,6 +29,7 @@ import type * as students from "../students.js";
 import type * as timeSlots from "../timeSlots.js";
 import type * as waha from "../waha.js";
 import type * as wahaMedia from "../wahaMedia.js";
+import type * as whatsapp from "../whatsapp.js";
 
 import type {
   ApiFromModules,
@@ -36,6 +38,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agent: typeof agent;
   appConfig: typeof appConfig;
   attendance: typeof attendance;
   classes: typeof classes;
@@ -56,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   timeSlots: typeof timeSlots;
   waha: typeof waha;
   wahaMedia: typeof wahaMedia;
+  whatsapp: typeof whatsapp;
 }>;
 
 /**

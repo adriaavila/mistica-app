@@ -36,19 +36,33 @@ async function findStudentsByPhone(ctx: QueryCtx | MutationCtx, normalized: stri
 // --- Inbound ---------------------------------------------------------------
 
 export const ingestInbound = internalMutation({
-  args: { payload: v.any() },
-  handler: async (ctx, { payload }) => {
+  args: { connectionId: v.optional(v.string()), payload: v.any() },
+  handler: async (ctx, { connectionId, payload }) => {
     const waMessageId: string | undefined = payload?.id;
     if (!waMessageId) return;
 
     // WAHA retries on any non-2xx, so the same message can arrive several times.
-    const existing = await ctx.db
-      .query("messages")
-      .withIndex("by_waMessageId", (q) => q.eq("waMessageId", waMessageId))
-      .first();
-    if (existing) return;
-
     const fromMe: boolean = payload.fromMe === true;
+    const existing = connectionId
+      ? await ctx.db
+          .query("messages")
+          .withIndex("by_connection_waMessageId", (q) =>
+            q.eq("connectionId", connectionId).eq("waMessageId", waMessageId)
+          )
+          .first()
+      : await ctx.db
+          .query("messages")
+          .withIndex("by_waMessageId", (q) => q.eq("waMessageId", waMessageId))
+          .first();
+    if (existing) {
+      // WAHA echoes our stable outbound id. Reconcile the pre-send row instead
+      // of inserting a second local/provider copy.
+      if (fromMe && existing.direction === "out" && existing.sendStatus === "PENDING") {
+        await ctx.db.patch(existing._id, { sendStatus: "SENT", sendError: undefined });
+      }
+      return;
+    }
+
     const chatId: string = fromMe ? payload.to : payload.from;
     if (!chatId) return;
 
@@ -62,15 +76,23 @@ export const ingestInbound = internalMutation({
     const hasMedia: boolean = payload.hasMedia === true;
 
     // Contact
-    let contact = await ctx.db
-      .query("contacts")
-      .withIndex("by_chatId", (q) => q.eq("waChatId", chatId))
-      .first();
+    let contact = connectionId
+      ? await ctx.db
+          .query("contacts")
+          .withIndex("by_connection_chatId", (q) =>
+            q.eq("connectionId", connectionId).eq("waChatId", chatId)
+          )
+          .first()
+      : await ctx.db
+          .query("contacts")
+          .withIndex("by_chatId", (q) => q.eq("waChatId", chatId))
+          .first();
 
     if (!contact) {
       const students = await findStudentsByPhone(ctx, normalized);
       const pushName: string = payload._data?.notifyName || payload.notifyName || "";
       const contactId = await ctx.db.insert("contacts", {
+        connectionId,
         waChatId: chatId,
         normalizedPhone: normalized,
         displayName: pushName || students[0]?.guardianName || students[0]?.name || normalized,
@@ -88,13 +110,21 @@ export const ingestInbound = internalMutation({
     }
 
     // Conversation
-    let conversation = await ctx.db
-      .query("conversations")
-      .withIndex("by_chatId", (q) => q.eq("waChatId", chatId))
-      .first();
+    let conversation = connectionId
+      ? await ctx.db
+          .query("conversations")
+          .withIndex("by_connection_chatId", (q) =>
+            q.eq("connectionId", connectionId).eq("waChatId", chatId)
+          )
+          .first()
+      : await ctx.db
+          .query("conversations")
+          .withIndex("by_chatId", (q) => q.eq("waChatId", chatId))
+          .first();
 
     if (!conversation) {
       const conversationId = await ctx.db.insert("conversations", {
+        connectionId,
         contactId: contact._id,
         waChatId: chatId,
         status: "abierta",
@@ -102,6 +132,8 @@ export const ingestInbound = internalMutation({
         lastMessagePreview: preview(body, hasMedia),
         lastMessageDirection: fromMe ? "out" : "in",
         unreadCount: 0,
+        // Automated sending is intentionally off for this pilot.
+        ownershipState: "HUMAN_ACTIVE",
         createdAt: now,
       });
       conversation = (await ctx.db.get(conversationId))!;
@@ -111,6 +143,7 @@ export const ingestInbound = internalMutation({
     const timestamp = typeof payload.timestamp === "number" ? payload.timestamp * 1000 : now;
 
     const messageId = await ctx.db.insert("messages", {
+      connectionId,
       conversationId: conversation._id,
       waMessageId,
       direction: fromMe ? "out" : "in",
@@ -119,6 +152,16 @@ export const ingestInbound = internalMutation({
       timestamp,
       hasMedia,
     });
+
+    if (connectionId) {
+      const connection = await ctx.db
+        .query("whatsappConnections")
+        .withIndex("by_connectionId", (q) => q.eq("connectionId", connectionId))
+        .unique();
+      if (connection) {
+        await ctx.db.patch(connection._id, { lastInboundAt: now, updatedAt: now });
+      }
+    }
 
     await ctx.db.patch(conversation._id, {
       lastMessageAt: timestamp,
@@ -144,25 +187,33 @@ export const ingestInbound = internalMutation({
         });
       }
     }
+    return { messageId, conversationId: conversation._id, fromMe };
   },
 });
 
 export const updateAck = internalMutation({
-  args: { payload: v.any() },
-  handler: async (ctx, { payload }) => {
+  args: { connectionId: v.optional(v.string()), payload: v.any() },
+  handler: async (ctx, { connectionId, payload }) => {
     const waMessageId: string | undefined = payload?.id;
     const ack: number | undefined = payload?.ack;
     if (!waMessageId || typeof ack !== "number") return;
 
-    const message = await ctx.db
-      .query("messages")
-      .withIndex("by_waMessageId", (q) => q.eq("waMessageId", waMessageId))
-      .first();
+    const message = connectionId
+      ? await ctx.db
+          .query("messages")
+          .withIndex("by_connection_waMessageId", (q) =>
+            q.eq("connectionId", connectionId).eq("waMessageId", waMessageId)
+          )
+          .first()
+      : await ctx.db
+          .query("messages")
+          .withIndex("by_waMessageId", (q) => q.eq("waMessageId", waMessageId))
+          .first();
     if (!message) return;
 
     // Acks can arrive out of order; never move the status backwards.
     if ((message.ack ?? 0) >= ack) return;
-    await ctx.db.patch(message._id, { ack });
+    await ctx.db.patch(message._id, { ack, sendStatus: "SENT", sendError: undefined });
   },
 });
 
@@ -265,24 +316,79 @@ export const getConversation = query({
 export const markRead = mutation({
   args: { conversationId: v.id("conversations") },
   handler: async (ctx, { conversationId }) => {
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation) return;
     await ctx.db.patch(conversationId, { unreadCount: 0 });
+
+    if (!conversation.connectionId) return;
+    const connectionId = conversation.connectionId;
+    const [connection, lastInbound] = await Promise.all([
+      ctx.db
+        .query("whatsappConnections")
+        .withIndex("by_connectionId", (q) => q.eq("connectionId", connectionId))
+        .unique(),
+      ctx.db
+        .query("messages")
+        .withIndex("by_conversation", (q) => q.eq("conversationId", conversationId))
+        .filter((q) => q.eq(q.field("direction"), "in"))
+        .order("desc")
+        .first(),
+    ]);
+    if (connection && lastInbound) {
+      await ctx.scheduler.runAfter(0, internal.waha.markAsRead, {
+        session: connection.wahaSessionId,
+        chatId: conversation.waChatId,
+        messageId: lastInbound.waMessageId,
+      });
+    }
   },
 });
 
 // --- Outbound reply --------------------------------------------------------
 
 export const recordOutbound = internalMutation({
-  args: { conversationId: v.id("conversations"), text: v.string(), localId: v.string() },
-  handler: async (ctx, { conversationId, text, localId }) => {
+  args: {
+    conversationId: v.id("conversations"),
+    text: v.string(),
+    providerMessageId: v.string(),
+    authorType: v.union(v.literal("humano"), v.literal("agente")),
+  },
+  handler: async (ctx, { conversationId, text, providerMessageId, authorType }) => {
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation) throw new Error("Conversación no encontrada");
+    const ownership = conversation.ownershipState ?? "HUMAN_ACTIVE";
+    if (authorType === "agente" && ownership !== "AGENT_ACTIVE") {
+      throw new Error("El agente no controla esta conversación");
+    }
+    if (authorType === "humano" && ownership !== "HUMAN_ACTIVE") {
+      throw new Error("Toma el control humano antes de responder");
+    }
+
+    const duplicate = conversation.connectionId
+      ? await ctx.db
+          .query("messages")
+          .withIndex("by_connection_waMessageId", (q) =>
+            q.eq("connectionId", conversation.connectionId!).eq("waMessageId", providerMessageId)
+          )
+          .first()
+      : await ctx.db
+          .query("messages")
+          .withIndex("by_waMessageId", (q) => q.eq("waMessageId", providerMessageId))
+          .first();
+    if (duplicate) return duplicate._id;
+
     const now = Date.now();
     const messageId = await ctx.db.insert("messages", {
+      connectionId: conversation.connectionId,
       conversationId,
-      waMessageId: localId,
+      waMessageId: providerMessageId,
       direction: "out",
-      authorType: "humano",
+      authorType,
       body: text,
       timestamp: now,
       hasMedia: false,
+      sendStatus: "PENDING",
+      sendAttemptedAt: now,
     });
     await ctx.db.patch(conversationId, {
       lastMessageAt: now,
@@ -297,14 +403,30 @@ export const recordOutbound = internalMutation({
 export const confirmOutbound = internalMutation({
   args: {
     messageId: v.id("messages"),
-    waMessageId: v.optional(v.string()),
+    status: v.union(v.literal("SENT"), v.literal("AMBIGUOUS"), v.literal("FAILED")),
     sendError: v.optional(v.string()),
   },
-  handler: async (ctx, { messageId, waMessageId, sendError }) => {
+  handler: async (ctx, { messageId, status, sendError }) => {
+    const message = await ctx.db.get(messageId);
+    if (!message) return;
     await ctx.db.patch(messageId, {
-      ...(waMessageId ? { waMessageId } : {}),
+      sendStatus: status,
       ...(sendError ? { sendError } : {}),
     });
+    if (message.connectionId) {
+      const connectionId = message.connectionId;
+      const connection = await ctx.db
+        .query("whatsappConnections")
+        .withIndex("by_connectionId", (q) => q.eq("connectionId", connectionId))
+        .unique();
+      if (connection) {
+        await ctx.db.patch(connection._id, {
+          ...(status === "SENT" ? { lastOutboundAt: Date.now() } : {}),
+          ...(sendError ? { lastError: sendError } : {}),
+          updatedAt: Date.now(),
+        });
+      }
+    }
   },
 });
 
@@ -317,27 +439,39 @@ export const sendReply = action({
     const data = await ctx.runQuery(internal.crm.getChatIdForConversation, { conversationId });
     if (!data) return { ok: false, error: "Conversación no encontrada" };
 
-    // Optimistic insert so the operator sees it immediately, then reconcile.
-    const localId = `local:${crypto.randomUUID()}`;
-    const messageId: Id<"messages"> = await ctx.runMutation(internal.crm.recordOutbound, {
-      conversationId,
-      text: trimmed,
-      localId,
-    });
-
+    const providerMessageId = crypto.randomUUID();
+    let messageId: Id<"messages"> | null = null;
     try {
-      const res = await ctx.runAction(internal.waha.sendText, {
+      // WAHA accepts caller-provided ids. Persist exactly that id before the
+      // network request so webhook echoes and acks race safely with the reply.
+      messageId = await ctx.runMutation(internal.crm.recordOutbound, {
+        conversationId,
+        text: trimmed,
+        providerMessageId,
+        authorType: "humano",
+      });
+      await ctx.runAction(internal.waha.sendText, {
         chatId: data.waChatId,
         text: trimmed,
+        id: providerMessageId,
+        session: data.session,
       });
       await ctx.runMutation(internal.crm.confirmOutbound, {
         messageId,
-        waMessageId: res.id,
+        status: "SENT",
       });
       return { ok: true };
     } catch (err) {
       const error = err instanceof Error ? err.message : "Error al enviar";
-      await ctx.runMutation(internal.crm.confirmOutbound, { messageId, sendError: error });
+      // Any transport failure after dispatch may still have reached WAHA. Keep
+      // it visible and require a human decision instead of retrying blindly.
+      if (messageId) {
+        await ctx.runMutation(internal.crm.confirmOutbound, {
+          messageId,
+          status: "AMBIGUOUS",
+          sendError: error,
+        });
+      }
       return { ok: false, error };
     }
   },
@@ -347,7 +481,70 @@ export const getChatIdForConversation = internalQuery({
   args: { conversationId: v.id("conversations") },
   handler: async (ctx, { conversationId }) => {
     const conversation = await ctx.db.get(conversationId);
-    return conversation ? { waChatId: conversation.waChatId } : null;
+    if (!conversation) return null;
+    const connectionId = conversation.connectionId;
+    const connection = connectionId
+      ? await ctx.db
+          .query("whatsappConnections")
+          .withIndex("by_connectionId", (q) => q.eq("connectionId", connectionId))
+          .unique()
+      : null;
+    return {
+      waChatId: conversation.waChatId,
+      session: connection?.wahaSessionId ?? process.env.WAHA_SESSION?.trim() ?? "default",
+    };
+  },
+});
+
+export const findOutboundByProviderId = internalQuery({
+  args: { conversationId: v.id("conversations"), providerMessageId: v.string() },
+  handler: async (ctx, { conversationId, providerMessageId }) => {
+    if (!providerMessageId) return null;
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation) return null;
+    const connectionId = conversation.connectionId;
+    const message = connectionId
+      ? await ctx.db
+          .query("messages")
+          .withIndex("by_connection_waMessageId", (q) =>
+            q.eq("connectionId", connectionId).eq("waMessageId", providerMessageId)
+          )
+          .first()
+      : await ctx.db
+          .query("messages")
+          .withIndex("by_waMessageId", (q) => q.eq("waMessageId", providerMessageId))
+          .first();
+    return message?._id ?? null;
+  },
+});
+
+export const takeOverConversation = mutation({
+  args: { conversationId: v.id("conversations") },
+  handler: async (ctx, { conversationId }) => {
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation) throw new Error("Conversación no encontrada");
+    await ctx.db.patch(conversationId, { ownershipState: "HUMAN_ACTIVE" });
+  },
+});
+
+export const resumeAgent = mutation({
+  args: { conversationId: v.id("conversations") },
+  handler: async (ctx, { conversationId }) => {
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation) throw new Error("Conversación no encontrada");
+    await ctx.db.patch(conversationId, { ownershipState: "AGENT_ACTIVE" });
+  },
+});
+
+export const setConversationOwnership = mutation({
+  args: {
+    conversationId: v.id("conversations"),
+    state: v.union(v.literal("PAUSED"), v.literal("CLOSED")),
+  },
+  handler: async (ctx, { conversationId, state }) => {
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation) throw new Error("Conversación no encontrada");
+    await ctx.db.patch(conversationId, { ownershipState: state });
   },
 });
 

@@ -117,6 +117,9 @@ function Thread({ conversationId }: { conversationId: Id<"conversations"> }) {
   const detail = useQuery(api.crm.getConversation, { conversationId });
   const sendReply = useAction(api.crm.sendReply);
   const markRead = useMutation(api.crm.markRead);
+  const takeOver = useMutation(api.crm.takeOverConversation);
+  const resumeAgent = useMutation(api.crm.resumeAgent);
+  const setOwnership = useMutation(api.crm.setConversationOwnership);
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -142,14 +145,30 @@ function Thread({ conversationId }: { conversationId: Id<"conversations"> }) {
     else setError(result.error ?? "No se pudo enviar");
   };
 
+  const ownership = detail?.conversation.ownershipState ?? "HUMAN_ACTIVE";
+
   return (
     <div className="flex h-[100dvh] flex-col">
       <div style={{
         padding: "14px 20px", borderBottom: "1px solid var(--border)",
         background: "var(--white)", flexShrink: 0,
       }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
-          {detail?.contact.displayName || detail?.contact.normalizedPhone || "…"}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
+            {detail?.contact.displayName || detail?.contact.normalizedPhone || "…"}
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)" }}>
+            {ownership === "HUMAN_ACTIVE" ? "Humano" : ownership === "AGENT_ACTIVE" ? "Agente" : ownership}
+          </span>
+          {ownership !== "HUMAN_ACTIVE" && (
+            <button type="button" onClick={() => void takeOver({ conversationId })}>Tomar control</button>
+          )}
+          {ownership === "HUMAN_ACTIVE" && (
+            <button type="button" onClick={() => void resumeAgent({ conversationId })}>Activar agente</button>
+          )}
+          {ownership !== "PAUSED" && (
+            <button type="button" onClick={() => void setOwnership({ conversationId, state: "PAUSED" })}>Pausar</button>
+          )}
         </div>
         <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
           {detail?.students.length
@@ -227,8 +246,10 @@ function Thread({ conversationId }: { conversationId: Id<"conversations"> }) {
                 void send();
               }
             }}
-            placeholder="Escribe un mensaje…"
+            placeholder={ownership === "HUMAN_ACTIVE" ? "Escribe un mensaje…" : "Toma el control humano para responder"}
             rows={1}
+            disabled={ownership !== "HUMAN_ACTIVE"}
+            aria-label="Respuesta de WhatsApp"
             style={{
               flex: 1, resize: "none", maxHeight: 120, padding: "10px 14px",
               borderRadius: 20, border: "1px solid var(--border)",
@@ -239,7 +260,7 @@ function Thread({ conversationId }: { conversationId: Id<"conversations"> }) {
           <button
             type="button"
             onClick={() => void send()}
-            disabled={sending || !text.trim()}
+            disabled={ownership !== "HUMAN_ACTIVE" || sending || !text.trim()}
             style={{
               flexShrink: 0, height: 40, padding: "0 18px", borderRadius: 20, border: "none",
               background: sending || !text.trim() ? "var(--surface-2)" : "var(--pool-blue)",
