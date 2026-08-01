@@ -11,7 +11,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* ponytail: 820px reading column on desktop keeps the existing card pages sane
           until they get their own layouts; full-bleed pages use the (crm) group. */}
       <main
-        className="mx-auto w-full max-w-[480px] flex-1 pb-20 lg:max-w-[820px] lg:pb-8"
+        className="mx-auto w-full max-w-[480px] flex-1 pb-20 md:pb-8 lg:max-w-[820px] lg:pb-8"
         style={{ minHeight: "100dvh" }}
       >
         {children}

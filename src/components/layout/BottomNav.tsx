@@ -11,7 +11,7 @@ export default function BottomNav() {
   const overdueCount = stats?.overdueCount ?? 0;
 
   return (
-    <nav className="lg:hidden" style={{
+    <nav className="md:hidden" style={{
       position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
       width: "100%", maxWidth: 480,
       background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)",
