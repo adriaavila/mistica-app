@@ -1,6 +1,26 @@
 # Mística App & WhatsApp Marketing Gateway
 
-This repository contains the administrative portal for **Mística Natación & Aquagym**, featuring real-time attendance, billing, sales, and automated marketing campaigns through the WhatsApp Web gateway.
+Administrative portal for **Mística Natación & Aquagym**: real-time attendance, billing, sales,
+and automated WhatsApp marketing campaigns.
+
+**Live:** https://mistica-app-fawn.vercel.app · **Category:** Web app · automation · **Status:** in production
+
+## The problem
+
+A swim school runs on two lists that never match: who actually showed up to class, and who has
+actually paid. Re-engaging lapsed students means one person copy-pasting WhatsApp messages for an
+afternoon — and messaging the same family three times because siblings sit in three rows.
+
+## What it does
+
+- Real-time attendance per class, billing and sales in one portal.
+- **WhatsApp campaign dispatcher** (`/mkt`) — throttled, targeted at active students, and it
+  **merges sibling names into a single greeting** so one family gets one message.
+- `MKT_DRY_RUN` mode so a campaign can be rehearsed before a single real message goes out.
+- Self-hosted WAHA gateway (Docker/Coolify), server-side only — credentials never reach the client bundle.
+
+Why it's in the portfolio: the automation is the product. Attendance data drives who gets
+messaged, so the marketing is a consequence of the operation instead of a separate chore.
 
 ---
 
@@ -100,3 +120,8 @@ Because WAHA operates by automating a headless browser logged into WhatsApp Web,
    - Use Venezuelan/Bolivian local numbers appropriately and ensure they are formatted properly (`58412...` / `5917...`).
 3. **Session Persistence**:
    - Although the session survives Next.js app redeploys (since WAHA is a separate service), the session token on your phone may be logged out by WhatsApp if the server remains inactive for too long. Periodically check `/mkt` status.
+
+---
+
+**Built by [creativ3](https://allok.fun)** — software and automation for businesses.
+[See the portfolio](https://allok.fun/projects) · [Request a quote](https://allok.fun/cotizar)
