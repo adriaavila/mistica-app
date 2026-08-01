@@ -11,12 +11,12 @@ export default function BottomNav() {
   const overdueCount = stats?.overdueCount ?? 0;
 
   return (
-    <nav className="md:hidden" style={{
+    <nav className="flex md:hidden" style={{
       position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
       width: "100%", maxWidth: 480,
       background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)",
       borderTop: "1px solid var(--border)",
-      display: "flex", alignItems: "flex-end", justifyContent: "space-around",
+      alignItems: "flex-end", justifyContent: "space-around",
       padding: "6px 4px calc(10px + env(safe-area-inset-bottom))",
       zIndex: 50, boxShadow: "0 -2px 20px rgba(0,0,0,0.06)",
     }}>
