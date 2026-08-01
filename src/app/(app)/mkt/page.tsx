@@ -8,6 +8,7 @@ import {
   ChevronDown,
   History,
   ImagePlus,
+  KeyRound,
   LoaderCircle,
   MessageCircle,
   Pause,
@@ -131,6 +132,9 @@ export default function MarketingPage() {
   const [wahaDebug, setWahaDebug] = useState<WahaDebugState | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [qrMessage, setQrMessage] = useState<string | null>(null);
+  const [pairingPhone, setPairingPhone] = useState("");
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingMessage, setPairingMessage] = useState<string | null>(null);
   const [connectionLoading, setConnectionLoading] = useState<string | null>(null);
   const [isDryRun, setIsDryRun] = useState(false);
 
@@ -240,6 +244,32 @@ export default function MarketingPage() {
     }
   };
 
+  const requestPairingCode = async () => {
+    if (!pairingPhone.trim()) {
+      setActionError("Ingresa el número de WhatsApp Business para recibir el código.");
+      return;
+    }
+    setConnectionLoading("pairing");
+    setActionError(null);
+    setPairingCode(null);
+    setPairingMessage(null);
+    try {
+      const response = await fetch("/api/mkt/whatsapp/pairing-code", {
+        method: "POST",
+        headers: AUTH_HEADERS,
+        body: JSON.stringify({ sessionName: WAHA_SESSION_NAME, phoneNumber: pairingPhone }),
+      });
+      const data = await readApiJson<{ code: string; message: string }>(response);
+      setPairingCode(data.code);
+      setPairingMessage(data.message);
+      setWahaStatus("qr_required");
+    } catch (error) {
+      setActionError(getErrorMessage(error));
+    } finally {
+      setConnectionLoading(null);
+    }
+  };
+
   const fetchWahaDebug = async () => {
     setConnectionLoading("debug");
     setActionError(null);
@@ -267,6 +297,8 @@ export default function MarketingPage() {
       });
       await readApiJson(response);
       setQrCode(null);
+      setPairingCode(null);
+      setPairingMessage(null);
       await fetchWahaStatus();
     } catch (error) {
       setActionError(getErrorMessage(error));
@@ -514,19 +546,46 @@ export default function MarketingPage() {
             <ChevronDown className={styles.chevron} size={18} />
           </summary>
           <div className={styles.connectionBody}>
-            <p>Vincula la línea que enviará las campañas. No cierres esa sesión durante una tanda.</p>
+            <p>Vincula la línea que enviará las campañas. Puedes usar un código o un QR.</p>
             <div className={styles.connectionActions}>
               <button onClick={fetchWahaStatus} disabled={Boolean(connectionLoading)}><RefreshCw size={15} /> Revisar</button>
-              <button onClick={startSession} disabled={Boolean(connectionLoading)}><Play size={15} /> Iniciar</button>
-              <button onClick={fetchQrCode} disabled={Boolean(connectionLoading)}><Smartphone size={15} /> Ver QR</button>
+              <button onClick={startSession} disabled={Boolean(connectionLoading)}><Play size={15} /> Preparar sesión</button>
+              <button onClick={fetchQrCode} disabled={Boolean(connectionLoading)}><Smartphone size={15} /> Vincular con QR</button>
               <button onClick={fetchWahaDebug} disabled={Boolean(connectionLoading)}>Diagnóstico</button>
               <button className={styles.dangerText} onClick={logoutSession} disabled={Boolean(connectionLoading)}>Cerrar sesión</button>
             </div>
             {connectionLoading && <div className={styles.inlineLoading}><LoaderCircle size={15} /> Procesando…</div>}
+            <div className={styles.pairingPanel}>
+              <div className={styles.pairingHeading}>
+                <KeyRound size={17} />
+                <div><strong>Vincular mediante código</strong><small>Alternativa al QR para este teléfono.</small></div>
+              </div>
+              <label className={styles.pairingField}>
+                <span>Número de WhatsApp Business</span>
+                <input
+                  type="tel"
+                  value={pairingPhone}
+                  onChange={(event) => setPairingPhone(event.target.value)}
+                  placeholder="591 7xxxxxxx"
+                  autoComplete="tel"
+                />
+              </label>
+              <button className={styles.pairingAction} onClick={requestPairingCode} disabled={Boolean(connectionLoading)}>
+                {connectionLoading === "pairing" ? <LoaderCircle className={styles.spin} size={15} /> : <KeyRound size={15} />}
+                Solicitar código
+              </button>
+              {pairingCode && (
+                <div className={styles.pairingCode} role="status">
+                  <small>Código de vinculación</small>
+                  <code>{pairingCode}</code>
+                  <span>{pairingMessage}</span>
+                </div>
+              )}
+            </div>
             {qrCode && (
               <div className={styles.qrPanel}>
                 <img src={qrCode} alt="Código QR para vincular WhatsApp" />
-                <span>WhatsApp › Dispositivos vinculados › Vincular dispositivo</span>
+                <span>En WhatsApp: Dispositivos vinculados › Vincular dispositivo</span>
               </div>
             )}
             {qrMessage && <p className={styles.connectionNote}>{qrMessage}</p>}

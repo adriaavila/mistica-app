@@ -9,6 +9,7 @@ export type WahaErrorCode =
   | "missing_api_key"
   | "service_unreachable"
   | "invalid_api_key"
+  | "pairing_code_unavailable"
   | "session_not_started"
   | "qr_not_available"
   | "already_connected"
@@ -106,6 +107,8 @@ function errorCodeToHttpStatus(code: WahaErrorCode): number {
       return 500;
     case "invalid_api_key":
       return 502;
+    case "pairing_code_unavailable":
+      return 409;
     case "service_unreachable":
       return 503;
     case "session_not_started":
@@ -277,7 +280,7 @@ async function wahaRequest(path: string, options: RequestInit = {}): Promise<unk
       if (response.status === 401 || response.status === 403) {
         throw new WahaClientError(
           "invalid_api_key",
-          "WAHA rejected the API key. Check WAHA_API_KEY in the app and WHATSAPP_API_KEY in Coolify.",
+          "WAHA rechazó la clave. Revisa WAHA_API_KEY en la aplicación y la clave de autenticación del servicio en Coolify.",
           response.status
         );
       }
@@ -334,6 +337,40 @@ export interface WahaQrResult {
   message: string | null;
 }
 
+export interface WahaPairingCodeResult {
+  code: string;
+  sessionName: string;
+  message: string;
+}
+
+async function waitForAuthReady(sessionName: WahaSessionName): Promise<WahaStatus> {
+  let status = await getWahaStatus(sessionName);
+  // ponytail: bounded 3s poll; WAHA normally reaches SCAN_QR_CODE faster, and
+  // the UI can retry if the gateway is still starting.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (!status.online || status.status === "SCAN_QR_CODE" || status.status === "WORKING") {
+      return status;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    status = await getWahaStatus(sessionName);
+  }
+  return status;
+}
+
+async function ensureAuthReady(sessionName: WahaSessionName): Promise<WahaStatus> {
+  let status = await getWahaStatus(sessionName);
+  if (!status.online) {
+    throw new WahaClientError("service_unreachable", status.lastError || "WAHA service is not reachable.");
+  }
+  if (["FAILED", "NOT_CREATED", "STOPPED"].includes(status.status ?? "")) {
+    await startWahaSession(sessionName);
+    status = await waitForAuthReady(sessionName);
+  } else if (status.status === "STARTING") {
+    status = await waitForAuthReady(sessionName);
+  }
+  return status;
+}
+
 /**
  * Fetches the current online status of all sessions from WAHA.
  */
@@ -386,6 +423,9 @@ export async function startWahaSession(sessionName = DEFAULT_WAHA_SESSION): Prom
     const exists = status.sessions.some((s) => s.name === resolvedSession);
 
     if (exists) {
+      if (status.status === "FAILED") {
+        return await wahaRequest(`/api/sessions/${resolvedSession}/restart`, { method: "POST" });
+      }
       // Session exists, just start it
       return await startExistingSession();
     }
@@ -421,15 +461,70 @@ export async function startWahaSession(sessionName = DEFAULT_WAHA_SESSION): Prom
   }
 }
 
+export async function requestWahaPairingCode(
+  phoneNumber: string,
+  sessionName = DEFAULT_WAHA_SESSION,
+): Promise<WahaPairingCodeResult> {
+  const resolvedSession = resolveWahaSessionName(sessionName);
+  const normalizedPhone = normalizePhone(phoneNumber);
+  if (!normalizedPhone) {
+    throw new WahaClientError(
+      "waha_error",
+      "Ingresa un número móvil boliviano válido, por ejemplo 591 7xxxxxxx."
+    );
+  }
+
+  try {
+    const status = await ensureAuthReady(resolvedSession);
+    if (status.status === "WORKING") {
+      throw new WahaClientError(
+        "already_connected",
+        "WhatsApp ya está conectado para esta sesión."
+      );
+    }
+    const data = await wahaRequest(`/api/${resolvedSession}/auth/request-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phoneNumber: normalizedPhone }),
+    });
+    const code = data && typeof data === "object" && "code" in data ? String(data.code).trim() : "";
+    if (!code) {
+      throw new WahaClientError(
+        "pairing_code_unavailable",
+        "WAHA no devolvió un código de vinculación. Usa el QR como alternativa."
+      );
+    }
+    return {
+      code,
+      sessionName: resolvedSession,
+      message: "En WhatsApp, abre Dispositivos vinculados y elige Vincular con número de teléfono."
+    };
+  } catch (err) {
+    if (err instanceof WahaClientError && err.code !== "waha_error") {
+      throw err;
+    }
+    const safeError = getSafeWahaError(err);
+    throw new WahaClientError(
+      "pairing_code_unavailable",
+      `No se pudo generar el código de vinculación: ${safeError.message}`,
+      safeError.status
+    );
+  }
+}
+
 /**
  * Retrieves the base64-encoded QR code for session authentication.
  * Returns null if the session is already working/connected.
  */
 export async function getWahaQr(sessionName = DEFAULT_WAHA_SESSION): Promise<WahaQrResult> {
   const resolvedSession = resolveWahaSessionName(sessionName);
-  const status = await getWahaStatus(resolvedSession);
+  let status = await getWahaStatus(resolvedSession);
   if (!status.online) {
     throw new WahaClientError("service_unreachable", status.lastError || "WAHA service is not reachable.");
+  }
+
+  if (["FAILED", "NOT_CREATED", "STOPPED", "STARTING"].includes(status.status ?? "")) {
+    status = await ensureAuthReady(resolvedSession);
   }
 
   const sessionStatus = status.status ?? null;
@@ -441,7 +536,7 @@ export async function getWahaQr(sessionName = DEFAULT_WAHA_SESSION): Promise<Wah
       message: "WhatsApp is already connected for this session.",
     };
   }
-  if (sessionStatus === "NOT_CREATED" || sessionStatus === "STOPPED") {
+  if (sessionStatus === "NOT_CREATED" || sessionStatus === "STOPPED" || sessionStatus === "FAILED") {
     return {
       qr: null,
       sessionName: resolvedSession,

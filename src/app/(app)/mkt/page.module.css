@@ -71,6 +71,21 @@
 .connectionActions button:disabled { opacity: .45; }
 .connectionActions .dangerText { color: #b3463c; }
 .inlineLoading { display: flex; gap: 6px; align-items: center; margin-top: 10px; font-size: 11px; color: #60777c; }
+.pairingPanel { display: flex; flex-direction: column; gap: 9px; padding: 12px; margin-top: 12px; background: #f8fbfa; border: 1px solid #dce8e6; border-radius: 14px; }
+.pairingHeading { display: flex; gap: 8px; align-items: center; color: #176f7a; }
+.pairingHeading > div { display: flex; flex-direction: column; }
+.pairingHeading strong { font-size: 12px; color: #29454c; }
+.pairingHeading small { margin-top: 2px; font-size: 10px; color: #7d9093; }
+.pairingField { display: flex; flex-direction: column; gap: 5px; }
+.pairingField span { font-size: 10px; font-weight: 800; color: #536a70; letter-spacing: .04em; text-transform: uppercase; }
+.pairingField input { width: 100%; height: 38px; padding: 0 10px; font: 600 12px var(--font); color: #28434a; background: white; border: 1px solid #dce8e6; border-radius: 10px; outline: none; }
+.pairingField input:focus { border-color: #31a0aa; box-shadow: 0 0 0 3px rgba(49,160,170,.12); }
+.pairingAction { display: inline-flex; gap: 6px; align-items: center; justify-content: center; min-height: 36px; font: 800 11px var(--font); color: white; background: #176f7a; border: 0; border-radius: 10px; }
+.pairingAction:disabled { opacity: .45; }
+.pairingCode { display: flex; flex-direction: column; gap: 4px; align-items: center; padding: 10px; color: #1a5c58; background: #e7f8f1; border: 1px solid #c9ecdf; border-radius: 10px; text-align: center; }
+.pairingCode small { font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.pairingCode code { font: 800 22px/1.2 var(--font); letter-spacing: .13em; color: #075e54; }
+.pairingCode span { font-size: 10px; line-height: 1.4; }
 .qrPanel { display: flex; flex-direction: column; gap: 8px; align-items: center; padding: 14px; margin-top: 12px; background: #f3f8f7; border-radius: 14px; }
 .qrPanel img { width: 176px; height: 176px; object-fit: contain; }
 .qrPanel span { font-size: 10px; color: #60777c; text-align: center; }

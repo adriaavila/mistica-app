@@ -59,8 +59,8 @@ To run the WhatsApp automation gateway:
 3. Expose port `3000` (mapped to internal container port `3000`).
 4. Configure volume mapping to persist sessions between service restarts:
    - Map `/data` inside the container to a persistent path on your host system (e.g. `./waha-data:/data`).
-5. Define environment variables in Coolify for WAHA:
-   - `WHATSAPP_API_KEY`: set this to a secure secret token (aligned with `WAHA_API_KEY` in Next.js).
+5. Define the gateway authentication variables in Coolify:
+   - `WAHA_API_KEY_HASH`: SHA-512 hash of the same secret configured as `WAHA_API_KEY` in Next.js/Vercel.
    - `WAHA_SESSIONS_PERSISTENCE`: `true` to ensure logins persist.
 6. Trigger the deployment.
 
@@ -69,10 +69,10 @@ To run the WhatsApp automation gateway:
 ### 📲 QR Code Login Flow
 
 1. Navigate to the `/mkt` dashboard (protected under Password Gate authorization).
-2. If disconnected, open `/mkt` and click **Iniciar sesión**. WAHA Core uses the single supported session named `default`.
-3. If pairing is required, click **Actualizar Código QR** to render the WhatsApp Web pairing QR Code.
-4. Open WhatsApp on your mobile phone &gt; **Linked Devices** &gt; **Link a Device** and scan the rendered code.
-5. Once connected, status transitions to `Conectado (WORKING)` and you are ready to prepare campaigns.
+2. If disconnected, open `/mkt` and expand **Conexión de WhatsApp**. WAHA uses the single supported session named `default`.
+3. Choose **Vincular mediante código**, enter the Business phone number, and request the code. In WhatsApp, open **Dispositivos vinculados** → **Vincular con número de teléfono** and enter it.
+4. If the code is unavailable, choose **Vincular con QR** and scan it from WhatsApp → **Dispositivos vinculados** → **Vincular dispositivo**.
+5. Once connected, status transitions to `WORKING` and you are ready to prepare campaigns.
 
 ---
 

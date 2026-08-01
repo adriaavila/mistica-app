@@ -10,6 +10,7 @@ import {
   getWahaStatus,
   startWahaSession,
   getWahaQr,
+  requestWahaPairingCode,
   sendWahaImage,
   sendWahaText,
   logoutWahaSession,
@@ -166,6 +167,57 @@ describe("WAHA API endpoints requests", () => {
         method: "POST",
       })
     );
+  });
+
+  it("startWahaSession should restart a failed session", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => [{ name: "default", status: "FAILED" }],
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ name: "default", status: "STARTING" }),
+      } as any);
+
+    await startWahaSession("default");
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "http://waha-test.io/api/sessions/default/restart",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("requestWahaPairingCode should send a normalized phone number", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => [{ name: "default", status: "SCAN_QR_CODE" }],
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ code: "ABCD-EFGH" }),
+      } as any);
+
+    await expect(requestWahaPairingCode("71234567")).resolves.toEqual({
+      code: "ABCD-EFGH",
+      sessionName: "default",
+      message: expect.any(String),
+    });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "http://waha-test.io/api/default/auth/request-code",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ phoneNumber: "59171234567" }),
+      })
+    );
+  });
+
+  it("requestWahaPairingCode should reject invalid phone numbers", async () => {
+    await expect(requestWahaPairingCode("41234567")).rejects.toThrow("número móvil boliviano válido");
   });
 
   it("getWahaQr should fetch base64 QR", async () => {
