@@ -6,6 +6,7 @@ vi.mock("server-only", () => ({}));
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   normalizePhone,
+  normalizePairingPhone,
   maskPhone,
   getWahaStatus,
   startWahaSession,
@@ -31,6 +32,13 @@ describe("WAHA phone normalization and masking", () => {
     expect(normalizePhone("59171234567")).toBe("59171234567");
     expect(normalizePhone("41234567")).toBe(null);
     expect(normalizePhone("123")).toBe(null);
+  });
+
+  it("allows international numbers for pairing-code tests", () => {
+    expect(normalizePairingPhone("+58 412 123 4567")).toBe("584121234567");
+    expect(normalizePairingPhone("0058 412 123 4567")).toBe("584121234567");
+    expect(normalizePairingPhone("71234567")).toBe("59171234567");
+    expect(normalizePairingPhone("41234567")).toBe(null);
   });
 
   it("should mask phone numbers correctly", () => {
@@ -216,8 +224,30 @@ describe("WAHA API endpoints requests", () => {
     );
   });
 
+  it("requestWahaPairingCode should send an international test number", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => [{ name: "default", status: "SCAN_QR_CODE" }],
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ code: "ABCD-EFGH" }),
+      } as any);
+
+    await requestWahaPairingCode("+58 412 123 4567");
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "http://waha-test.io/api/default/auth/request-code",
+      expect.objectContaining({
+        body: JSON.stringify({ phoneNumber: "584121234567" }),
+      })
+    );
+  });
+
   it("requestWahaPairingCode should reject invalid phone numbers", async () => {
-    await expect(requestWahaPairingCode("41234567")).rejects.toThrow("número móvil boliviano válido");
+    await expect(requestWahaPairingCode("41234567")).rejects.toThrow("número internacional válido");
   });
 
   it("getWahaQr should fetch base64 QR", async () => {

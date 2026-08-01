@@ -66,6 +66,33 @@ function statusToUiStatus(status?: string | null): WahaUiStatus {
   return "disconnected";
 }
 
+function describeWahaConnection(status: string | null, uiStatus: WahaUiStatus) {
+  if (uiStatus === "loading") {
+    return { label: "Revisando", detail: "Comprobando la sesión de WhatsApp…" };
+  }
+  if (uiStatus === "connected") {
+    return { label: "Listo", detail: "Listo para enviar campañas." };
+  }
+  if (uiStatus === "error") {
+    return { label: "Sin conexión", detail: "No se pudo comprobar el servidor." };
+  }
+
+  switch (status) {
+    case "SCAN_QR":
+    case "SCAN_QR_CODE":
+      return { label: "Esperando vínculo", detail: "Elige QR o código de teléfono para vincular." };
+    case "STARTING":
+      return { label: "Preparando", detail: "La sesión se está preparando para vincularse." };
+    case "STARTED":
+      return { label: "Lista para vincular", detail: "Elige QR o código para terminar." };
+    case "NOT_CREATED":
+    case "STOPPED":
+      return { label: "Sesión detenida", detail: "Inicia la sesión para vincular." };
+    default:
+      return { label: "Pendiente", detail: "Elige un método para vincular WhatsApp." };
+  }
+}
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Ocurrió un error inesperado.";
 }
@@ -516,6 +543,7 @@ export default function MarketingPage() {
 
   const messageLimit = imageFile ? 1024 : 4096;
   const previewMessage = renderPreview(message);
+  const connectionState = describeWahaConnection(wahaRawStatus, wahaStatus);
 
   return (
     <div className={styles.page}>
@@ -538,19 +566,19 @@ export default function MarketingPage() {
             </span>
             <span className={styles.connectionCopy}>
               <strong>{wahaStatus === "connected" ? "WhatsApp conectado" : "Conexión de WhatsApp"}</strong>
-              <small>{isDryRun ? "Modo simulación activo" : wahaRawStatus || "Toca para revisar"}</small>
+              <small>{isDryRun ? "Modo simulación activo" : connectionState.detail}</small>
             </span>
             <span className={`${styles.connectionStatus} ${styles[wahaStatus]}`}>
-              {wahaStatus === "connected" ? "Listo" : wahaStatus === "loading" ? "Revisando" : "Atención"}
+              {connectionState.label}
             </span>
             <ChevronDown className={styles.chevron} size={18} />
           </summary>
           <div className={styles.connectionBody}>
-            <p>Vincula la línea que enviará las campañas. Puedes usar un código o un QR.</p>
+            <p>Vincula la línea que enviará tus campañas. Elige una de estas dos opciones:</p>
             <div className={styles.connectionActions}>
               <button onClick={fetchWahaStatus} disabled={Boolean(connectionLoading)}><RefreshCw size={15} /> Revisar</button>
-              <button onClick={startSession} disabled={Boolean(connectionLoading)}><Play size={15} /> Preparar sesión</button>
-              <button onClick={fetchQrCode} disabled={Boolean(connectionLoading)}><Smartphone size={15} /> Vincular con QR</button>
+              <button onClick={startSession} disabled={Boolean(connectionLoading)}><Play size={15} /> Iniciar sesión</button>
+              <button onClick={fetchQrCode} disabled={Boolean(connectionLoading)}><Smartphone size={15} /> Mostrar QR</button>
               <button onClick={fetchWahaDebug} disabled={Boolean(connectionLoading)}>Diagnóstico</button>
               <button className={styles.dangerText} onClick={logoutSession} disabled={Boolean(connectionLoading)}>Cerrar sesión</button>
             </div>
@@ -558,7 +586,7 @@ export default function MarketingPage() {
             <div className={styles.pairingPanel}>
               <div className={styles.pairingHeading}>
                 <KeyRound size={17} />
-                <div><strong>Vincular mediante código</strong><small>Alternativa al QR para este teléfono.</small></div>
+                <div><strong>1. Vincular con código de teléfono</strong><small>Úsalo si no puedes escanear un QR.</small></div>
               </div>
               <label className={styles.pairingField}>
                 <span>Número de WhatsApp Business</span>
@@ -566,13 +594,14 @@ export default function MarketingPage() {
                   type="tel"
                   value={pairingPhone}
                   onChange={(event) => setPairingPhone(event.target.value)}
-                  placeholder="591 7xxxxxxx"
+                  placeholder="+58 412 123 4567"
                   autoComplete="tel"
                 />
+                <small>Incluye el código de país (+591, +58, +34…). Puedes usar cualquier país para probar la vinculación.</small>
               </label>
               <button className={styles.pairingAction} onClick={requestPairingCode} disabled={Boolean(connectionLoading)}>
                 {connectionLoading === "pairing" ? <LoaderCircle className={styles.spin} size={15} /> : <KeyRound size={15} />}
-                Solicitar código
+                Generar código
               </button>
               {pairingCode && (
                 <div className={styles.pairingCode} role="status">
@@ -584,8 +613,9 @@ export default function MarketingPage() {
             </div>
             {qrCode && (
               <div className={styles.qrPanel}>
-                <img src={qrCode} alt="Código QR para vincular WhatsApp" />
-                <span>En WhatsApp: Dispositivos vinculados › Vincular dispositivo</span>
+                <strong>2. Vincular con código QR</strong>
+                <img src={qrCode} alt="Código QR de conexión de WhatsApp" />
+                <span>En WhatsApp: Ajustes → Dispositivos vinculados → Vincular dispositivo. Escanea este código.</span>
               </div>
             )}
             {qrMessage && <p className={styles.connectionNote}>{qrMessage}</p>}

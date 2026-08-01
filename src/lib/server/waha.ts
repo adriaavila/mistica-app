@@ -227,6 +227,29 @@ export function normalizePhone(phone: string): string | null {
 }
 
 /**
+ * Normalizes a phone number only for WhatsApp's pairing-code endpoint.
+ * Pairing tests may use any country; campaign sending remains Bolivia-only.
+ */
+export function normalizePairingPhone(phone: string): string | null {
+  const bolivianPhone = normalizePhone(phone);
+  if (bolivianPhone) {
+    return bolivianPhone;
+  }
+
+  let cleaned = phone.replace(/\D/g, "");
+  const hasInternationalPrefix = /^\s*(?:\+|00)/.test(phone);
+  if (cleaned.startsWith("00")) {
+    cleaned = cleaned.slice(2);
+  }
+
+  if ((!hasInternationalPrefix && cleaned.length < 10) || !/^[1-9]\d{7,14}$/.test(cleaned)) {
+    return null;
+  }
+
+  return cleaned;
+}
+
+/**
  * Masks a phone number for secure logging (e.g. 59171234567 -> 5917***4567).
  */
 export function maskPhone(phone: string): string {
@@ -466,11 +489,11 @@ export async function requestWahaPairingCode(
   sessionName = DEFAULT_WAHA_SESSION,
 ): Promise<WahaPairingCodeResult> {
   const resolvedSession = resolveWahaSessionName(sessionName);
-  const normalizedPhone = normalizePhone(phoneNumber);
+  const normalizedPhone = normalizePairingPhone(phoneNumber);
   if (!normalizedPhone) {
     throw new WahaClientError(
       "waha_error",
-      "Ingresa un número móvil boliviano válido, por ejemplo 591 7xxxxxxx."
+      "Ingresa un número internacional válido con código de país, por ejemplo +58 412 123 4567."
     );
   }
 

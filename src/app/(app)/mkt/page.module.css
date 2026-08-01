@@ -55,12 +55,14 @@
 .connectionCard summary::-webkit-details-marker { display: none; }
 .connectionIcon { display: grid; width: 34px; height: 34px; place-items: center; color: #7c8e94; background: #edf2f2; border-radius: 11px; }
 .connectionIcon.connected { color: #087765; background: #daf7ee; }
+.connectionIcon.qr_required { color: #176f7a; background: #e2f2f0; }
 .connectionIcon.error, .connectionIcon.disconnected { color: #ad5c37; background: #fff0e7; }
 .connectionCopy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .connectionCopy strong { font-size: 13px; }
 .connectionCopy small { overflow: hidden; font-size: 10px; color: #75868b; text-overflow: ellipsis; white-space: nowrap; }
 .connectionStatus { padding: 4px 8px; font-size: 9px; font-weight: 800; color: #6b7b80; text-transform: uppercase; background: #edf2f2; border-radius: 99px; }
 .connectionStatus.connected { color: #087765; background: #daf7ee; }
+.connectionStatus.qr_required { color: #176f7a; background: #e2f2f0; }
 .connectionStatus.error, .connectionStatus.disconnected { color: #a64e2a; background: #fff0e7; }
 .chevron { color: #94a3a6; transition: transform .2s ease; }
 .connectionCard[open] .chevron { transform: rotate(180deg); }
@@ -78,6 +80,7 @@
 .pairingHeading small { margin-top: 2px; font-size: 10px; color: #7d9093; }
 .pairingField { display: flex; flex-direction: column; gap: 5px; }
 .pairingField span { font-size: 10px; font-weight: 800; color: #536a70; letter-spacing: .04em; text-transform: uppercase; }
+.pairingField small { font-size: 10px; line-height: 1.4; color: #71868a; }
 .pairingField input { width: 100%; height: 38px; padding: 0 10px; font: 600 12px var(--font); color: #28434a; background: white; border: 1px solid #dce8e6; border-radius: 10px; outline: none; }
 .pairingField input:focus { border-color: #31a0aa; box-shadow: 0 0 0 3px rgba(49,160,170,.12); }
 .pairingAction { display: inline-flex; gap: 6px; align-items: center; justify-content: center; min-height: 36px; font: 800 11px var(--font); color: white; background: #176f7a; border: 0; border-radius: 10px; }
@@ -87,6 +90,7 @@
 .pairingCode code { font: 800 22px/1.2 var(--font); letter-spacing: .13em; color: #075e54; }
 .pairingCode span { font-size: 10px; line-height: 1.4; }
 .qrPanel { display: flex; flex-direction: column; gap: 8px; align-items: center; padding: 14px; margin-top: 12px; background: #f3f8f7; border-radius: 14px; }
+.qrPanel strong { font-size: 12px; color: #29454c; }
 .qrPanel img { width: 176px; height: 176px; object-fit: contain; }
 .qrPanel span { font-size: 10px; color: #60777c; text-align: center; }
 .connectionNote { padding: 9px 10px; color: #72531a !important; background: #fff8df; border-radius: 10px; }
