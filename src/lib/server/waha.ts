@@ -368,10 +368,10 @@ export interface WahaPairingCodeResult {
 
 async function waitForAuthReady(sessionName: WahaSessionName): Promise<WahaStatus> {
   let status = await getWahaStatus(sessionName);
-  // ponytail: bounded 3s poll; WAHA normally reaches SCAN_QR_CODE faster, and
-  // the UI can retry if the gateway is still starting.
-  for (let attempt = 0; attempt < 6; attempt++) {
-    if (!status.online || status.status === "SCAN_QR_CODE" || status.status === "WORKING") {
+  // ponytail: bounded 6s poll; pairing requests sent while WAHA is still
+  // STARTING often result in WhatsApp showing "Couldn't link device".
+  for (let attempt = 0; attempt < 12; attempt++) {
+    if (!status.online || ["SCAN_QR", "SCAN_QR_CODE"].includes(status.status ?? "") || status.status === "WORKING") {
       return status;
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -505,6 +505,12 @@ export async function requestWahaPairingCode(
         "WhatsApp ya está conectado para esta sesión."
       );
     }
+    if (!["SCAN_QR", "SCAN_QR_CODE", "STARTED"].includes(status.status ?? "")) {
+      throw new WahaClientError(
+        "pairing_code_unavailable",
+        "La sesión todavía no está lista para vincularse. Espera a que aparezca el estado «Esperando vínculo» y genera un código nuevo."
+      );
+    }
     const data = await wahaRequest(`/api/${resolvedSession}/auth/request-code`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -520,13 +526,21 @@ export async function requestWahaPairingCode(
     return {
       code,
       sessionName: resolvedSession,
-      message: "En WhatsApp, abre Dispositivos vinculados y elige Vincular con número de teléfono."
+      message: "En el mismo teléfono: WhatsApp → Dispositivos vinculados → Vincular con número de teléfono y pega este código."
     };
   } catch (err) {
     if (err instanceof WahaClientError && err.code !== "waha_error") {
       throw err;
     }
     const safeError = getSafeWahaError(err);
+    const normalizedError = safeError.message.toLowerCase();
+    if (normalizedError.includes("couldn't link") || (normalizedError.includes("link") && normalizedError.includes("device"))) {
+      throw new WahaClientError(
+        "pairing_code_unavailable",
+        "WhatsApp no pudo vincular el dispositivo. Inicia la sesión de nuevo y genera un código nuevo desde este mismo teléfono.",
+        safeError.status
+      );
+    }
     throw new WahaClientError(
       "pairing_code_unavailable",
       `No se pudo generar el código de vinculación: ${safeError.message}`,

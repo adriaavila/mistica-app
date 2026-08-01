@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  Copy,
   History,
   ImagePlus,
   KeyRound,
@@ -162,6 +163,7 @@ export default function MarketingPage() {
   const [pairingPhone, setPairingPhone] = useState("");
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [pairingMessage, setPairingMessage] = useState<string | null>(null);
+  const [pairingCodeCopied, setPairingCodeCopied] = useState(false);
   const [connectionLoading, setConnectionLoading] = useState<string | null>(null);
   const [isDryRun, setIsDryRun] = useState(false);
 
@@ -255,8 +257,17 @@ export default function MarketingPage() {
   };
 
   const fetchQrCode = async () => {
+    if (wahaStatus !== "qr_required") {
+      setActionError("Primero pulsa «Iniciar sesión» y espera a que diga «Esperando vínculo». Después podrás mostrar el QR.");
+      return;
+    }
     setConnectionLoading("qr");
     setActionError(null);
+    setQrCode(null);
+    setQrMessage(null);
+    setPairingCode(null);
+    setPairingMessage(null);
+    setPairingCodeCopied(false);
     try {
       const response = await fetch("/api/mkt/whatsapp/qr", { headers: AUTH_HEADERS });
       const data = await readApiJson<{ qr?: string | null; status?: string | null; message?: string | null }>(response);
@@ -272,14 +283,21 @@ export default function MarketingPage() {
   };
 
   const requestPairingCode = async () => {
+    if (wahaStatus !== "qr_required") {
+      setActionError("Primero pulsa «Iniciar sesión» y espera a que diga «Esperando vínculo». Después podrás generar el código.");
+      return;
+    }
     if (!pairingPhone.trim()) {
       setActionError("Ingresa el número de WhatsApp Business para recibir el código.");
       return;
     }
     setConnectionLoading("pairing");
     setActionError(null);
+    setQrCode(null);
+    setQrMessage(null);
     setPairingCode(null);
     setPairingMessage(null);
+    setPairingCodeCopied(false);
     try {
       const response = await fetch("/api/mkt/whatsapp/pairing-code", {
         method: "POST",
@@ -294,6 +312,17 @@ export default function MarketingPage() {
       setActionError(getErrorMessage(error));
     } finally {
       setConnectionLoading(null);
+    }
+  };
+
+  const copyPairingCode = async () => {
+    if (!pairingCode) return;
+    try {
+      await navigator.clipboard.writeText(pairingCode);
+      setPairingCodeCopied(true);
+      window.setTimeout(() => setPairingCodeCopied(false), 2200);
+    } catch {
+      setActionError("No se pudo copiar el código. Selecciónalo y cópialo manualmente.");
     }
   };
 
@@ -326,6 +355,7 @@ export default function MarketingPage() {
       setQrCode(null);
       setPairingCode(null);
       setPairingMessage(null);
+      setPairingCodeCopied(false);
       await fetchWahaStatus();
     } catch (error) {
       setActionError(getErrorMessage(error));
@@ -574,11 +604,19 @@ export default function MarketingPage() {
             <ChevronDown className={styles.chevron} size={18} />
           </summary>
           <div className={styles.connectionBody}>
-            <p>Vincula la línea que enviará tus campañas. Elige una de estas dos opciones:</p>
+            <p>
+              {wahaStatus === "connected"
+                ? "WhatsApp ya está conectado y listo para enviar campañas."
+                : wahaStatus === "qr_required"
+                ? "La sesión está lista para vincularse. Elige una de estas dos opciones:"
+                : wahaRawStatus === "STARTING"
+                  ? "La sesión se está preparando. Espera a que diga «Esperando vínculo» para continuar."
+                  : "Primero pulsa «Iniciar sesión». Cuando diga «Esperando vínculo», podrás usar QR o código de teléfono."}
+            </p>
             <div className={styles.connectionActions}>
               <button onClick={fetchWahaStatus} disabled={Boolean(connectionLoading)}><RefreshCw size={15} /> Revisar</button>
               <button onClick={startSession} disabled={Boolean(connectionLoading)}><Play size={15} /> Iniciar sesión</button>
-              <button onClick={fetchQrCode} disabled={Boolean(connectionLoading)}><Smartphone size={15} /> Mostrar QR</button>
+              <button onClick={fetchQrCode} disabled={Boolean(connectionLoading) || wahaStatus !== "qr_required"}><Smartphone size={15} /> Mostrar QR</button>
               <button onClick={fetchWahaDebug} disabled={Boolean(connectionLoading)}>Diagnóstico</button>
               <button className={styles.dangerText} onClick={logoutSession} disabled={Boolean(connectionLoading)}>Cerrar sesión</button>
             </div>
@@ -599,15 +637,22 @@ export default function MarketingPage() {
                 />
                 <small>Incluye el código de país (+591, +58, +34…). Puedes usar cualquier país para probar la vinculación.</small>
               </label>
-              <button className={styles.pairingAction} onClick={requestPairingCode} disabled={Boolean(connectionLoading)}>
+              <button className={styles.pairingAction} onClick={requestPairingCode} disabled={Boolean(connectionLoading) || wahaStatus !== "qr_required"}>
                 {connectionLoading === "pairing" ? <LoaderCircle className={styles.spin} size={15} /> : <KeyRound size={15} />}
                 Generar código
               </button>
               {pairingCode && (
                 <div className={styles.pairingCode} role="status">
                   <small>Código de vinculación</small>
-                  <code>{pairingCode}</code>
+                  <div className={styles.pairingCodeValue}>
+                    <code>{pairingCode}</code>
+                    <button className={styles.copyCodeButton} onClick={copyPairingCode} type="button" aria-label="Copiar código de vinculación">
+                      {pairingCodeCopied ? <Check size={15} /> : <Copy size={15} />}
+                      {pairingCodeCopied ? "Copiado" : "Copiar"}
+                    </button>
+                  </div>
                   <span>{pairingMessage}</span>
+                  <small className={styles.pairingRecovery}>Si WhatsApp muestra “Couldn&apos;t link device”, cierra la sesión, vuelve a iniciarla y genera un código nuevo.</small>
                 </div>
               )}
             </div>

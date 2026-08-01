@@ -246,6 +246,25 @@ describe("WAHA API endpoints requests", () => {
     );
   });
 
+  it("requestWahaPairingCode should explain device-link failures", async () => {
+    vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => [{ name: "default", status: "SCAN_QR_CODE" }],
+      } as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ message: "Couldn't link device" }),
+      } as any);
+
+    await expect(requestWahaPairingCode("+58 412 123 4567")).rejects.toThrow(
+      "WhatsApp no pudo vincular el dispositivo"
+    );
+  });
+
   it("requestWahaPairingCode should reject invalid phone numbers", async () => {
     await expect(requestWahaPairingCode("41234567")).rejects.toThrow("número internacional válido");
   });
