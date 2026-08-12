@@ -2,8 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST as remind } from "./route";
 import * as waha from "@/lib/server/waha";
 
+const TEST_PASSWORD = "test-admin-password";
+
 // Setup environment variables before loading modules
 vi.hoisted(() => {
+  process.env.ADMIN_PASSWORD = "test-admin-password";
   process.env.WAHA_BASE_URL = "http://waha-test.io";
   process.env.WAHA_API_KEY = "test-api-key";
 });
@@ -12,7 +15,7 @@ vi.hoisted(() => {
 vi.mock("server-only", () => ({}));
 
 describe("Payments Remind Route Handler", () => {
-  const authHeaders = { Authorization: "Bearer Mistica-Admin246" };
+  const authHeaders = { Authorization: `Bearer ${TEST_PASSWORD}` };
 
   beforeEach(() => {
     vi.restoreAllMocks();

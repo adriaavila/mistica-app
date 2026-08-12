@@ -13,8 +13,11 @@ import { POST as pauseCampaign } from "./campaigns/pause/route";
 import { convex } from "@/lib/server/convex";
 import * as waha from "@/lib/server/waha";
 
+const TEST_PASSWORD = "test-admin-password";
+
 // Setup environment variables before loading modules
 vi.hoisted(() => {
+  process.env.ADMIN_PASSWORD = "test-admin-password";
   process.env.WAHA_BASE_URL = "http://waha-test.io";
   process.env.WAHA_API_KEY = "test-api-key";
   process.env.NEXT_PUBLIC_CONVEX_URL = "https://convex-test.cloud";
@@ -47,7 +50,7 @@ describe("Marketing Route Handlers - Security & Auth", () => {
     const req = new Request("http://localhost/api/mkt/whatsapp/status", {
       method: "GET",
       headers: {
-        Authorization: "Bearer Mistica-Admin246",
+        Authorization: `Bearer ${TEST_PASSWORD}`,
       },
     });
 
@@ -66,7 +69,7 @@ describe("Marketing Route Handlers - Security & Auth", () => {
 });
 
 describe("Marketing Route Handlers - WhatsApp Management", () => {
-  const authHeaders = { Authorization: "Bearer Mistica-Admin246" };
+  const authHeaders = { Authorization: `Bearer ${TEST_PASSWORD}` };
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -161,7 +164,7 @@ describe("Marketing Route Handlers - WhatsApp Management", () => {
 });
 
 describe("Marketing Route Handlers - Campaign CRUD", () => {
-  const authHeaders = { Authorization: "Bearer Mistica-Admin246" };
+  const authHeaders = { Authorization: `Bearer ${TEST_PASSWORD}` };
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -250,7 +253,7 @@ describe("Marketing Route Handlers - Campaign CRUD", () => {
 });
 
 describe("Marketing Route Handlers - Messaging Operations", () => {
-  const authHeaders = { Authorization: "Bearer Mistica-Admin246" };
+  const authHeaders = { Authorization: `Bearer ${TEST_PASSWORD}` };
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -295,7 +298,7 @@ describe("Marketing Route Handlers - Messaging Operations", () => {
     ];
 
     vi.spyOn(convex, "query").mockResolvedValue(mockMessages as any);
-    const mutationSpy = vi.spyOn(convex, "mutation").mockResolvedValue({} as any);
+    const mutationSpy = vi.spyOn(convex, "mutation").mockResolvedValue(true as any);
     const sendSpy = vi.spyOn(waha, "sendWahaText").mockResolvedValue({ id: "ok" });
 
     const req = new Request("http://localhost/api/mkt/send-batch", {

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { internalAction, internalMutation, query } from "./_generated/server";
+import { internalAction, internalMutation } from "./_generated/server";
+import { query } from "./lib/auth";
 import { internal } from "./_generated/api";
 
 const PILOT_WORKSPACE = "mistica";

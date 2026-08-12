@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query } from "./lib/auth";
 
 function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + "T00:00:00");

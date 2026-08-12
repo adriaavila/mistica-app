@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, MutationCtx, query } from "./_generated/server";
+import { internalMutation, type MutationCtx } from "./_generated/server";
+import { mutation, query } from "./lib/auth";
 import { dueDateForMonth, insertNextMonthlyPayment } from "./paymentsLib";
 
 export const listByStudent = query({
@@ -77,7 +78,12 @@ export const addPartialPayment = mutation({
     const payment = await ctx.db.get(args.id);
     if (!payment) return;
 
-    const newPaidAmount = (payment.paidAmount ?? 0) + args.amount;
+    const paidAmount = payment.paidAmount ?? 0;
+    const remaining = payment.amount - paidAmount;
+    if (!Number.isFinite(args.amount) || args.amount <= 0 || args.amount > remaining) {
+      throw new Error("El abono debe ser positivo y no superar el saldo pendiente");
+    }
+    const newPaidAmount = paidAmount + args.amount;
 
     if (newPaidAmount >= payment.amount) {
       await ctx.db.patch(args.id, {

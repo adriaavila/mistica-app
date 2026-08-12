@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, MutationCtx, query } from "./_generated/server";
+import { type MutationCtx } from "./_generated/server";
+import { mutation, query } from "./lib/auth";
 import { Id } from "./_generated/dataModel";
 import { ensureCurrentMonthPayment } from "./paymentsLib";
 

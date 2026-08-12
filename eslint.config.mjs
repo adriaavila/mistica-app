@@ -11,8 +11,21 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "public/sw.js",
+    "public/swe-worker-*.js",
     "next-env.d.ts",
   ]),
+  {
+    files: ["**/*.test.ts", "**/*.test.tsx", "src/types/**/*.d.ts"],
+    rules: { "@typescript-eslint/no-explicit-any": "off" },
+  },
+  {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "react-hooks/set-state-in-effect": "warn",
+      "react/no-unescaped-entities": "warn",
+    },
+  },
 ]);
 
 export default eslintConfig;

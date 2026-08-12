@@ -1,8 +1,23 @@
 import { NextResponse } from "next/server";
+import { verifyAuth } from "@/lib/server/auth";
 
 export async function POST(req: Request) {
+  if (!verifyAuth(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const body = await req.json();
+    const fields = [
+      "activeCount",
+      "overdueCount",
+      "expiringSoon",
+      "collectedThisMonth",
+      "expectedThisMonth",
+      "collectionRate",
+    ] as const;
+    if (fields.some((field) => !Number.isFinite(body[field]) || body[field] < 0 || body[field] > 1_000_000_000)) {
+      return NextResponse.json({ error: "Invalid metrics" }, { status: 400 });
+    }
     const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {

@@ -98,13 +98,14 @@ export async function POST(request: Request) {
 
     for (let i = 0; i < messagesToProcess.length; i++) {
       const msg = messagesToProcess[i];
-      attempted++;
 
       try {
-        // Mark message as sending in Convex
-        await convex.mutation(api.marketing.markMarketingMessageSending, {
+        // Convex serializes this claim across every app replica.
+        const claimed = await convex.mutation(api.marketing.markMarketingMessageSending, {
           messageId: msg._id,
         });
+        if (!claimed) continue;
+        attempted++;
 
         if (campaign.imageStorageId) {
           if (!campaign.imageUrl || !campaign.imageMimeType) {

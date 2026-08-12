@@ -143,4 +143,27 @@ describe("payments", () => {
 
     expect(await monthlyMonths(t, studentId)).toEqual(["2026-06", "2026-07"]);
   });
+
+  it("rejects negative amounts and overpayments", async () => {
+    const t = convexTest(schema);
+    const studentId = await seedStudent(t, "2026-07-05");
+    const paymentId = await t.run((ctx) =>
+      ctx.db.insert("payments", {
+        studentId,
+        type: "monthly",
+        amount: 250,
+        dueDate: "2026-07-05",
+        status: "pending",
+        month: "2026-06",
+        paidAmount: 100,
+      }),
+    );
+
+    await expect(
+      t.mutation(api.payments.addPartialPayment, { id: paymentId, amount: -1 }),
+    ).rejects.toThrow("saldo pendiente");
+    await expect(
+      t.mutation(api.payments.addPartialPayment, { id: paymentId, amount: 151 }),
+    ).rejects.toThrow("saldo pendiente");
+  });
 });

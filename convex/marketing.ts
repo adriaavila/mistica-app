@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query } from "./lib/auth";
 import { Doc, Id } from "./_generated/dataModel";
 
 type MarketingSegment = "natacion" | "aquagym" | "all";
@@ -434,6 +434,7 @@ export const markMarketingMessageSending = mutation({
   handler: async (ctx, args) => {
     const msg = await ctx.db.get(args.messageId);
     if (!msg) throw new Error("Message not found");
+    if (msg.status !== "pending") return false;
 
     await ctx.db.patch(args.messageId, {
       status: "sending",
@@ -449,6 +450,8 @@ export const markMarketingMessageSending = mutation({
         updatedAt: Date.now(),
       });
     }
+
+    return true;
   },
 });
 

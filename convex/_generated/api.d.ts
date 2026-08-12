@@ -15,6 +15,7 @@ import type * as classes from "../classes.js";
 import type * as crm from "../crm.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
+import type * as lib_auth from "../lib/auth.js";
 import type * as lib_hmac from "../lib/hmac.js";
 import type * as lib_phone from "../lib/phone.js";
 import type * as marketing from "../marketing.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   crm: typeof crm;
   crons: typeof crons;
   http: typeof http;
+  "lib/auth": typeof lib_auth;
   "lib/hmac": typeof lib_hmac;
   "lib/phone": typeof lib_phone;
   marketing: typeof marketing;

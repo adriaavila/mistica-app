@@ -1,13 +1,11 @@
 import { v } from "convex/values";
 import {
-  action,
   internalMutation,
   internalQuery,
-  mutation,
-  query,
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
+import { action, mutation, query } from "./lib/auth";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { normalizePhone, fromChatId, maskPhone } from "./lib/phone";

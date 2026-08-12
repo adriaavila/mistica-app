@@ -152,7 +152,8 @@ describe("marketing campaigns", () => {
 
     // 5. Test sending progression
     // Mark siblingMsg as sending
-    await t.mutation(api.marketing.markMarketingMessageSending, { messageId: siblingMsg!._id });
+    expect(await t.mutation(api.marketing.markMarketingMessageSending, { messageId: siblingMsg!._id })).toBe(true);
+    expect(await t.mutation(api.marketing.markMarketingMessageSending, { messageId: siblingMsg!._id })).toBe(false);
     const siblingMsgSending = (await t.query(api.marketing.listCampaignMessages, { campaignId }))
       .find(m => m._id === siblingMsg!._id);
     expect(siblingMsgSending?.status).toBe("sending");
