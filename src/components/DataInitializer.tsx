@@ -8,12 +8,18 @@ export default function DataInitializer() {
   const seedClasses = useMutation(api.classes.seedDefaults);
   const seedSlots = useMutation(api.timeSlots.seedDefaultSlots);
   const seedStudents = useMutation(api.seed.seedStudents);
+  const ensureClassSlots = useMutation(api.classes.ensureSlotsForClasses);
 
   useEffect(() => {
     seedConfig();
-    seedClasses();
-    seedSlots();
     seedStudents();
+    // Order matters: the backfill must see the seeded classes and the default
+    // slots, otherwise it creates duplicates or blocks seedDefaultSlots.
+    (async () => {
+      await seedClasses();
+      await seedSlots();
+      await ensureClassSlots();
+    })();
   }, []);
 
   return null;

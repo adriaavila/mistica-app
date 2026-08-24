@@ -37,13 +37,14 @@ describe("timeSlots", () => {
     });
 
     const activeSlots = await t.query(api.timeSlots.list, { activeOnly: true });
-    expect(activeSlots).toMatchObject([
-      {
+    // classes.create makes its own slot, so the hand-made one is not alone.
+    expect(activeSlots).toContainEqual(
+      expect.objectContaining({
         _id: timeSlotId,
         label: "Avanzada 6-7 pm",
         modalities: ["avanzada"],
-      },
-    ]);
+      })
+    );
 
     const studentId = await t.mutation(api.students.create, {
       name: "Ana Avanzada",
@@ -77,5 +78,50 @@ describe("timeSlots", () => {
       date: "2026-07-07",
     });
     expect(attendance).toMatchObject([{ studentId, present: true }]);
+  });
+
+  it("makes a brand-new class assignable without creating a slot by hand", async () => {
+    const t = convexTest(schema);
+
+    await t.mutation(api.classes.create, {
+      key: "avanzada",
+      name: "Natacion Avanzada",
+      description: "Mensualidad avanzada",
+      price: 300,
+      isActive: true,
+      days: ["Tue"],
+      startTime: "17:00",
+      endTime: "18:00",
+    });
+
+    const slots = await t.query(api.timeSlots.list, { activeOnly: true });
+    expect(slots).toMatchObject([
+      { label: "Natacion Avanzada", days: ["Tue"], startTime: "17:00", modalities: ["avanzada"] },
+    ]);
+  });
+
+  it("backfills slots for classes that predate the auto-created one", async () => {
+    const t = convexTest(schema);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("classes", {
+        key: "vieja",
+        name: "Clase Vieja",
+        description: "Creada antes del fix",
+        price: 200,
+        isActive: true,
+        days: ["Wed"],
+        startTime: "10:00",
+        endTime: "11:00",
+      });
+    });
+
+    await t.mutation(api.classes.ensureSlotsForClasses, {});
+    await t.mutation(api.classes.ensureSlotsForClasses, {});
+
+    const slots = await t.query(api.timeSlots.list, { activeOnly: true });
+    expect(slots).toMatchObject([
+      { label: "Clase Vieja", modalities: ["vieja"] },
+    ]);
   });
 });

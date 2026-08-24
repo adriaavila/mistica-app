@@ -37,7 +37,21 @@ export const create = mutation({
     startTime: v.string(),
     endTime: v.string(),
   },
-  handler: async (ctx, args) => ctx.db.insert("classes", args),
+  handler: async (ctx, args) => {
+    const id = await ctx.db.insert("classes", args);
+    // Without a matching timeSlot the new class has no horario to assign, so it
+    // never shows up when changing a student's schedule.
+    await ctx.db.insert("timeSlots", {
+      label: args.name,
+      days: args.days,
+      startTime: args.startTime,
+      endTime: args.endTime,
+      isActive: args.isActive,
+      maxCapacity: 15,
+      modalities: [args.key],
+    });
+    return id;
+  },
 });
 
 export const update = mutation({
@@ -93,6 +107,29 @@ export const update = mutation({
     }
 
     await ctx.db.patch(id, fields);
+  },
+});
+
+// Backfill for classes created before create() started making their timeSlot.
+export const ensureSlotsForClasses = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const classes = await ctx.db.query("classes").collect();
+    const slots = await ctx.db.query("timeSlots").collect();
+    const covered = new Set(slots.flatMap((s) => s.modalities));
+    for (const cls of classes) {
+      // nat5x is assigned through the lmv + mj slots, it never gets its own.
+      if (cls.key === "nat5x" || covered.has(cls.key)) continue;
+      await ctx.db.insert("timeSlots", {
+        label: cls.name,
+        days: cls.days,
+        startTime: cls.startTime,
+        endTime: cls.endTime,
+        isActive: cls.isActive,
+        maxCapacity: 15,
+        modalities: [cls.key],
+      });
+    }
   },
 });
 
