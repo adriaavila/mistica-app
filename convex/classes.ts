@@ -38,6 +38,15 @@ export const create = mutation({
     endTime: v.string(),
   },
   handler: async (ctx, args) => {
+    // Two classes sharing a key are indistinguishable: students store the key
+    // as their modality and timeSlots tag themselves with it.
+    const clash = await ctx.db
+      .query("classes")
+      .withIndex("by_key", (q) => q.eq("key", args.key))
+      .first();
+    if (clash) {
+      throw new Error(`Ya existe una clase con la clave "${args.key}"`);
+    }
     const id = await ctx.db.insert("classes", args);
     // Without a matching timeSlot the new class has no horario to assign, so it
     // never shows up when changing a student's schedule.

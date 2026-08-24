@@ -124,4 +124,32 @@ describe("timeSlots", () => {
       { label: "Clase Vieja", modalities: ["vieja"] },
     ]);
   });
+
+  it("rejects a second class reusing an existing key", async () => {
+    const t = convexTest(schema);
+
+    const base = {
+      name: "LMV 3:30-4:30",
+      description: "Natacion",
+      price: 250,
+      isActive: true,
+      days: ["Mon", "Wed", "Fri"],
+      startTime: "15:30",
+      endTime: "16:30",
+    };
+    await t.mutation(api.classes.create, { ...base, key: "natacion" });
+
+    await expect(
+      t.mutation(api.classes.create, {
+        ...base,
+        key: "natacion",
+        name: "LMV 4:30-5:30",
+        startTime: "16:30",
+        endTime: "17:30",
+      })
+    ).rejects.toThrow('Ya existe una clase con la clave "natacion"');
+
+    const slots = await t.query(api.timeSlots.list, { activeOnly: true });
+    expect(slots).toHaveLength(1);
+  });
 });

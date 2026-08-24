@@ -61,6 +61,7 @@ function ClassForm({
   onDelete,
   saving,
   isNew,
+  error,
 }: {
   initial: FormState;
   onSave: (f: FormState) => void;
@@ -68,6 +69,7 @@ function ClassForm({
   onDelete?: () => void;
   saving: boolean;
   isNew: boolean;
+  error?: string;
 }) {
   const [form, setForm] = useState<FormState>({
     ...initial,
@@ -201,6 +203,14 @@ function ClassForm({
           </div>
         </label>
 
+        {error && (
+          <div style={{
+            marginBottom: 12, padding: "10px 12px", borderRadius: 10,
+            background: "var(--surface-2)", color: "var(--overdue-coral)",
+            fontSize: 13, fontWeight: 600,
+          }}>{error}</div>
+        )}
+
         <button
           onClick={() => onSave(form)}
           disabled={!valid || saving}
@@ -253,6 +263,7 @@ export default function MasPage() {
 
   const [editing, setEditing] = useState<ClassDoc | null | "new">(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [expandedSlotId, setExpandedSlotId] = useState<Id<"timeSlots"> | null>(null);
 
   const slotsByModality = useMemo(() => {
@@ -270,28 +281,38 @@ export default function MasPage() {
 
   const handleSave = async (form: FormState) => {
     setSaving(true);
-    if (editing === "new") {
-      await createClass({
-        key: form.key,
-        name: form.name,
-        description: form.description,
-        price: parseFloat(form.price),
-        isActive: form.isActive,
-        days: form.days,
-        startTime: form.startTime,
-        endTime: form.endTime,
-      });
-    } else if (editing) {
-      await updateClass({
-        id: editing._id,
-        name: form.name,
-        description: form.description,
-        price: parseFloat(form.price),
-        isActive: form.isActive,
-        days: form.days,
-        startTime: form.startTime,
-        endTime: form.endTime,
-      });
+    setSaveError("");
+    try {
+      if (editing === "new") {
+        await createClass({
+          key: form.key,
+          name: form.name,
+          description: form.description,
+          price: parseFloat(form.price),
+          isActive: form.isActive,
+          days: form.days,
+          startTime: form.startTime,
+          endTime: form.endTime,
+        });
+      } else if (editing) {
+        await updateClass({
+          id: editing._id,
+          name: form.name,
+          description: form.description,
+          price: parseFloat(form.price),
+          isActive: form.isActive,
+          days: form.days,
+          startTime: form.startTime,
+          endTime: form.endTime,
+        });
+      }
+    } catch (err) {
+      // Convex wraps handler errors, keep just the message we threw.
+      const raw = err instanceof Error ? err.message : "";
+      const match = raw.match(/Uncaught Error: ([^\n]*)/);
+      setSaveError(match ? match[1].trim() : "No se pudo guardar la clase");
+      setSaving(false);
+      return;
     }
     setSaving(false);
     setEditing(null);
@@ -370,7 +391,7 @@ export default function MasPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>Clases</div>
             <button
-              onClick={() => setEditing("new")}
+              onClick={() => { setSaveError(""); setEditing("new"); }}
               style={{
                 background: "var(--pool-light)", borderRadius: 99, padding: "6px 14px",
                 fontSize: 13, fontWeight: 700, color: "var(--pool-blue)",
@@ -560,9 +581,10 @@ export default function MasPage() {
             endTime: editing.endTime,
           }}
           onSave={handleSave}
-          onClose={() => setEditing(null)}
+          onClose={() => { setEditing(null); setSaveError(""); }}
           onDelete={editing !== "new" ? () => handleDelete(editing._id) : undefined}
           saving={saving}
+          error={saveError || undefined}
         />
       )}
     </div>
