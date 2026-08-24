@@ -5,7 +5,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
 import EmptyState from "@/components/ui/EmptyState";
-import { DAY_LABELS } from "@/lib/utils";
+import { DAY_LABELS, formatTime } from "@/lib/utils";
 
 const ALL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
@@ -317,7 +317,7 @@ export default function HorariosPage() {
                       {slot.label}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 3 }}>
-                      {slot.startTime} – {slot.endTime} · {slot.days.map(d => DAY_LABELS[d] ?? d).join(", ")}
+                      {formatTime(slot.startTime)} – {formatTime(slot.endTime)} · {slot.days.map(d => DAY_LABELS[d] ?? d).join(", ")}
                     </div>
                   </div>
                   {!slot.isActive && (

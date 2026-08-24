@@ -1,6 +1,7 @@
 "use client";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { formatTime } from "@/lib/utils";
 
 export default function DiagnosticoPage() {
   const students = useQuery(api.students.list, {});
@@ -44,7 +45,7 @@ export default function DiagnosticoPage() {
 
         <DataSection title="Horarios" data={slots} renderItem={(s: any) => (
           <div style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-            <strong>{s.label}</strong> — {s.startTime} a {s.endTime} — {s.isActive ? "Activo" : "Inactivo"}
+            <strong>{s.label}</strong> — {formatTime(s.startTime)} a {formatTime(s.endTime)} — {s.isActive ? "Activo" : "Inactivo"}
           </div>
         )} />
 

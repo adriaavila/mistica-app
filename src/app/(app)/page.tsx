@@ -1,7 +1,7 @@
 "use client";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { getGreeting, todayStr, formatCurrency } from "@/lib/utils";
+import { getGreeting, todayStr, formatCurrency, formatTime } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -209,7 +209,7 @@ export default function HomePage() {
                   <div style={{ background: "var(--white)", borderRadius: 16, padding: "14px 16px", boxShadow: "var(--shadow-card)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>{slot.label}</div>
-                      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{slot.startTime} – {slot.endTime}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{formatTime(slot.startTime)} – {formatTime(slot.endTime)}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: 20, fontWeight: 800, color: slot.recorded ? "var(--paid-green)" : "var(--pool-blue)" }}>

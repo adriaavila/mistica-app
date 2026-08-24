@@ -5,7 +5,7 @@ import { api } from "../../../../convex/_generated/api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import EmptyState from "@/components/ui/EmptyState";
-import { todayStr, formatDate, getRelativeDays, MODALITY_SHORT, MODALITY_COLORS } from "@/lib/utils";
+import { todayStr, formatDate, getRelativeDays, MODALITY_SHORT, MODALITY_COLORS, formatTime } from "@/lib/utils";
 import { Id } from "../../../../convex/_generated/dataModel";
 
 // Pick the best slot for today based on current clock time
@@ -130,7 +130,7 @@ function AsistenciaContent() {
             <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)" }}>Asistencia</div>
             {activeSlot && (
               <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                {activeSlot.label} · {activeSlot.startTime}–{activeSlot.endTime}
+                {activeSlot.label} · {formatTime(activeSlot.startTime)}–{formatTime(activeSlot.endTime)}
               </div>
             )}
           </div>

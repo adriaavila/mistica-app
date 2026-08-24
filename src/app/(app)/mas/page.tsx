@@ -7,7 +7,7 @@ import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import { todayStr } from "@/lib/utils";
+import { todayStr, formatTime } from "@/lib/utils";
 
 const ALL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const DAY_LABELS: Record<string, string> = {
@@ -445,7 +445,7 @@ export default function MasPage() {
                               )}
                             </div>
                             <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                              {cls.description} · {cls.days.map(d => DAY_LABELS[d] ?? d).join(", ")} ({cls.startTime} – {cls.endTime})
+                              {cls.description} · {cls.days.map(d => DAY_LABELS[d] ?? d).join(", ")} ({formatTime(cls.startTime)} – {formatTime(cls.endTime)})
                             </div>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
@@ -490,7 +490,7 @@ export default function MasPage() {
                                       {slot.label} {!slot.isActive && "· Inactivo"}
                                     </div>
                                     <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-                                      {slot.days.map(d => DAY_LABELS[d] ?? d).join(", ")} · {slot.startTime}–{slot.endTime} · {slotStudents.length} alumno{slotStudents.length === 1 ? "" : "s"}
+                                      {slot.days.map(d => DAY_LABELS[d] ?? d).join(", ")} · {formatTime(slot.startTime)}–{formatTime(slot.endTime)} · {slotStudents.length} alumno{slotStudents.length === 1 ? "" : "s"}
                                     </div>
                                   </button>
                                   <Link

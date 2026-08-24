@@ -25,6 +25,14 @@ export function getRelativeDays(dateStr: string): { days: number; label: string;
   return { days: diff, label: `Vence ${formatDate(dateStr)}`, urgency: "normal" };
 }
 
+// The school names its classes in 12h ("4:30-5:30 pm"), so times read the same.
+export function formatTime(time: string): string {
+  const [h, m] = time.split(":");
+  const hour = Number(h);
+  if (!Number.isFinite(hour)) return time;
+  return `${hour % 12 || 12}:${(m ?? "00").padStart(2, "0")} ${hour < 12 ? "am" : "pm"}`;
+}
+
 export const MODALITY_LABELS: Record<string, string> = {
   lmv: "Natación LMV", mj: "Natación MJ",
   aquagym3x: "Aqua Gym 3x", aquagym5x: "Aqua Gym 5x",
